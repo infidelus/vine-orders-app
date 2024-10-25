@@ -10,3 +10,11 @@ Other than the obvious bits you can see in the application, there is also a hidd
 The application works quite well with the only notable issue being scraping the price on certain items, but this is likely because Amazon don't like it when we don't pay them to scrape product information from their site, and I think ChatGPT did rather a good job in the end even if it had me swearing quite regularly during the whole process.
 
 When I decided see if ChatGPT could make a working application I also decided I wanted it running as a Docker container on my Unraid server so it was available 24/7/365 from whatever device I happened to be using.  It does not need to be a Docker, but you do need to have the dependencies listed in requirements.txt installed if you want to run it locally.
+
+A few images of the app:
+
+![dashboard](https://github.com/user-attachments/assets/1d04ece4-14ce-43c4-9d36-ddec76cad04c)
+
+![orders](https://github.com/user-attachments/assets/83e23bad-009c-49ea-ab23-1dba09cb3bd3)
+
+![edit-order](https://github.com/user-attachments/assets/90c351dc-fad7-4c16-83f2-62eb98c3261e)
