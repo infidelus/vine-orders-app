@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>View Order</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/simplemde.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/fontawesome.all.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script> <!-- Link your script here -->
+</head>
+<body>
+    <!-- Main Wrapper to Contain the Content and Apply Existing Borders -->
+    <div class="page-wrapper">
+        <!-- Dark Mode Toggle - Moved Inside the Content Wrapper -->
+        <div class="dark-mode-toggle">
+            <label for="dark-mode-checkbox">Dark Mode</label>
+            <input type="checkbox" id="dark-mode-checkbox" onclick="toggleDarkMode()">
+        </div>
+        
+        <!-- Banner-styled heading -->
+        <h1 class="banner-heading">Order Details</h1>
+
+        <div class="container">
+            <!-- Left Column: Order Details -->
+            <div class="left-column">
+                <p><strong>Description:</strong> {{ order['description'] }}</p>
+                <p><strong>Product URL:</strong> <a href="{{ order['url'] }}" target="_blank">{{ order['url'] }}</a></p>
+
+                <!-- Price Editing Section -->
+                <p><strong>Price:</strong>
+                    <span id="price-container">
+                        <span id="price-display">£{{ "{:.2f}".format(order['price']) if order['price'] else "No price available" }}</span>
+                        <button id="edit-price-btn" class="small-button" onclick="togglePriceEdit(true)" style="margin-left: 10px;">Edit Price</button>
+                    </span>
+                </p>
+
+                <div id="price-edit-section" style="display: none;">
+                    <form id="price-form" method="POST" action="{{ url_for('update_price', order_id=order['id']) }}">
+                        <input type="text" id="price-input" name="price" value="{{ order['price'] if order['price'] else '' }}" />
+                        <button type="submit" class="small-button">Save</button>
+                        <button type="button" class="cancel-button" onclick="togglePriceEdit(false)">Cancel</button>
+                    </form>
+                </div>
+
+                <!-- Date ordered -->
+                <p>Date Ordered: {{ order['date_ordered'] | datetimeformat(0) }}</p>
+
+                <p id="review-due-date" style="{% if order['review_date'] %}display: none;{% endif %}">
+                    Review Due Date: {{ review_due_date }}
+                </p>
+
+                <!-- Show the current review date and provide an edit button -->
+                <!-- Show the current review date -->
+                <p>
+                    Review Date: <span id="review-date-display">
+                        {% if order['review_date'] %}
+                            {{ review_date }}
+                        {% else %}
+                            Not reviewed yet
+                        {% endif %}
+                    </span>
+                    {% if order['review_date'] %}
+                        <button id="edit-review-date-btn" class="small-button" onclick="toggleReviewDateEdit()">Edit Review Date</button>
+                    {% endif %}
+                </p>
+                
+                <!-- Hidden form to update the review date -->
+                <form id="review-date-form" method="POST" action="{{ url_for('update_review_date', order_id=order['id']) }}" style="display:none;">
+                    <label for="review_date">Review Date:</label>
+                    <input type="date" id="review_date" name="review_date" value="{{ order['review_date'] }}" required>
+                    <button type="submit" class="small-button">Save Review Date</button>
+                </form>
+                
+                <br><br>
+                
+                <p class="vine-reviews-page"><a href="https://www.amazon.co.uk/vine/vine-reviews" target="_blank">Vine Reviews Page</a></p>
+            </div>
+
+            <script>
+                function toggleReviewDateEdit() {
+                    // Toggle visibility of the edit form and hide the display text
+                    document.getElementById('review-date-display').style.display = 'none';
+                    document.getElementById('edit-review-date-btn').style.display = 'none';
+                    document.getElementById('review-date-form').style.display = 'block';
+
+                    // Set focus on the date input field
+                    document.getElementById('review_date').focus();
+                }
+
+                // Prevent selecting a review date earlier than the order date
+                document.getElementById('review_date').setAttribute('min', '{{ order["date_ordered"] }}');
+            </script>
+
+            <!-- Right Column: Review Section -->
+            <div class="right-column">
+                <h2>Review</h2>
+
+                <div id="review-display">
+                    {% if order['review'] %}
+                        <div>{{ review_html | safe }}</div>
+                    {% else %}
+                        <div>No review yet</div>
+                    {% endif %}
+                    <div class="review-actions">
+                        <button id="edit-review-btn" class="small-button" onclick="toggleReviewEdit(true)">Edit Review</button>
+                    </div>
+                </div>
+
+                <!-- Emoji picker div, initially hidden -->
+                <div class="emoji-picker" id="emoji-picker" style="display: none;">
+                    <h3>Select Emoji</h3>
+                    <span class="emoji" onclick="insertEmoji('🙂️')">🙂️</span>
+                    <span class="emoji" onclick="insertEmoji('😉️')">😉️</span>
+                    <span class="emoji" onclick="insertEmoji('😀')">😀</span>
+                    <span class="emoji" onclick="insertEmoji('😂')">😂</span>
+                    <span class="emoji" onclick="insertEmoji('😁️')">😁️</span>
+                    <span class="emoji" onclick="insertEmoji('🤣️')">🤣️</span>
+                    <span class="emoji" onclick="insertEmoji('😛️')">😛️</span>
+                    <span class="emoji" onclick="insertEmoji('👍')">👍</span>
+                    <span class="emoji" onclick="insertEmoji('👎️')">👎️</span>
+                    <span class="emoji" onclick="insertEmoji('❤️')">❤️</span>
+                    <!-- Add more emojis as needed -->
+                </div>
+
+                <div id="review-edit-section" style="display: none;">
+                    <form id="review-form">
+                        <textarea id="review-editor" name="review">{{ order['review'] or '' }}</textarea>
+                        <button type="submit" class="small-button">Save Review</button> <!-- Applied small-button styling -->
+                        <button type="button" class="cancel-button" onclick="toggleReviewEdit(false)">Cancel</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="bottom-buttons">
+            <div class="left-buttons">
+                <a href="{{ url_for('orders') }}" class="button-link">Back to Orders</a>
+                <a href="{{ url_for('index') }}" class="button-link">Back to Dashboard</a>
+            </div>
+
+            <!-- Delete Button Form -->
+            <form action="{{ url_for('delete_order', order_id=order.id) }}" method="POST" style="display:inline;">
+                <button type="submit" class="button-link delete-button">Delete</button>
+            </form>
+        </div>
+
+        <!-- SimpleMDE JS -->
+        <script src="{{ url_for('static', filename='js/simplemde.min.js') }}"></script>
+
+        <script>
+            var simplemde;
+
+            function toggleReviewEdit(isEditing) {
+                const displaySection = document.getElementById('review-display');
+                const editSection = document.getElementById('review-edit-section');
+
+                if (isEditing) {
+                    displaySection.style.display = 'none';
+                    editSection.style.display = 'block';
+
+                    if (!simplemde) {
+                        simplemde = new SimpleMDE({
+                            element: document.getElementById("review-editor"),
+                            spellChecker: true,
+                            toolbar: ["bold", "italic", "heading", "|", "quote", "unordered-list", "ordered-list", "|", "link", "image", "|", "preview", "side-by-side", "fullscreen"],
+                            status: ["lines", "words"],
+                            autofocus: true,
+                        });
+                    }
+                    
+                    // Apply dark mode styling to SimpleMDE toolbar buttons if dark mode is enabled
+                    const darkModeSetting = localStorage.getItem('darkMode');
+                    if (darkModeSetting === 'enabled') {
+                        const toolbarButtons = document.querySelectorAll('.editor-toolbar a');
+                        toolbarButtons.forEach(button => {
+                            button.style.color = '#ffffff';  // Set button text color to white
+                            button.style.backgroundColor = '#333';  // Set button background to dark grey
+                        });
+                    }
+
+                    document.getElementById('emoji-picker').style.display = 'block';
+                } else {
+                    displaySection.style.display = 'block';
+                    editSection.style.display = 'none';
+                    document.getElementById('emoji-picker').style.display = 'none';
+                }
+            }
+
+            function insertEmoji(emoji) {
+                if (simplemde) {
+                    var cm = simplemde.codemirror;
+                    var doc = cm.getDoc();
+                    var cursor = doc.getCursor();
+                    doc.replaceRange(emoji, cursor);
+                }
+            }
+
+            function togglePriceEdit(isEditing) {
+                const priceDisplay = document.getElementById('price-display');
+                const priceEditSection = document.getElementById('price-edit-section');
+                const priceInput = document.getElementById('price-input');
+            
+                if (isEditing) {
+                    priceDisplay.style.display = 'none';
+                    priceEditSection.style.display = 'block';
+                    priceInput.focus(); // Automatically focus on the price input field
+                } else {
+                    priceDisplay.style.display = 'inline';
+                    priceEditSection.style.display = 'none';
+                }
+            }
+
+            document.getElementById('price-form').addEventListener('submit', function(e) {
+                e.preventDefault();
+                const priceValue = document.getElementById('price-input').value;
+
+                fetch("{{ url_for('update_price', order_id=order['id']) }}", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/x-www-form-urlencoded",
+                    },
+                    body: "price=" + encodeURIComponent(priceValue),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Only update the price value, leave the button intact
+                        document.getElementById('price-display').textContent = `£${parseFloat(priceValue).toFixed(2)}`;
+                        togglePriceEdit(false);  // Close the edit section after saving
+                    } else {
+                        alert("Error updating price: " + data.error);
+                    }
+                })
+                .catch(err => {
+                    alert("Failed to update price: " + err.message);
+                });
+            });
+    
+            // Handle form submission for review using AJAX to avoid page reload
+            document.getElementById('review-form').addEventListener('submit', function(e) {
+                e.preventDefault();
+                const reviewContent = simplemde.value();  // Get review content from the editor
+            
+                fetch("{{ url_for('update_review', order_id=order['id']) }}", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/x-www-form-urlencoded",
+                    },
+                    body: `review=${encodeURIComponent(reviewContent)}`,
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok ' + response.statusText);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log("Server response:", data);  // Debug: log the server response
+            
+                    if (data.success) {
+                        // Update the review display with the new content
+                        const reviewDisplay = document.getElementById('review-display');
+                        reviewDisplay.innerHTML = `<div>${data.updated_review_html}</div><button id="edit-review-btn" class="small-button">Edit Review</button>`;
+                        
+                        // Reattach the event listener to the new Edit Review button
+                        const editReviewButton = document.getElementById('edit-review-btn');
+                        if (editReviewButton) {
+                            editReviewButton.addEventListener('click', function() {
+                                toggleReviewEdit(true);
+                            });
+                        }
+            
+                        // Only update review date if the element exists
+                        const reviewDateDisplay = document.getElementById('review-date-display');
+                        if (reviewDateDisplay) {
+                            const formattedDate = new Date(data.review_date).toLocaleDateString('en-GB');  // Format as dd/mm/yyyy
+                            reviewDateDisplay.textContent = formattedDate;  // Update with the formatted date only
+                            console.log("Updated review date:", data.review_date);  // Debug: log the new review date
+                            
+                            // Force reflow to fix layout
+                            const reviewDateContainer = document.getElementById('review-date-container');
+                            if (reviewDateContainer) {
+                                reviewDateContainer.style.display = 'none';  // Hide it momentarily
+                                reviewDateContainer.offsetHeight;  // Force a reflow
+                                reviewDateContainer.style.display = '';  // Show it again
+                            }
+
+                            // Ensure the "Edit Review Date" button is visible now that we have a review date
+                            const editReviewDateBtn = document.getElementById('edit-review-date-btn');
+                            if (editReviewDateBtn) {
+                                editReviewDateBtn.style.display = 'inline-block';  // Ensure the button is displayed
+                            } else {
+                                // If the button doesn't exist, create it dynamically
+                                const newButtonHTML = `<button id="edit-review-date-btn" class="small-button" onclick="toggleReviewDateEdit()">Edit Review Date</button>`;
+                                reviewDateDisplay.insertAdjacentHTML('afterend', newButtonHTML);  // Insert the button right after the review date
+                                console.log("Created Edit Review Date button.");  // Debug: log the button creation
+            
+                                // Assign the event listener for the newly created "Edit Review Date" button
+                                document.getElementById('edit-review-date-btn').addEventListener('click', function() {
+                                    toggleReviewDateEdit();
+                                });
+                            }
+                        } else {
+                            console.error("Review date element not found.");  // Debug: log if element is missing
+                        }
+            
+                        // Hide review due date if the review is complete or update it if necessary
+                        const reviewDueDateDisplay = document.getElementById('review-due-date');
+                        if (reviewDueDateDisplay) {
+                            if (data.review_due_date === 'Complete') {
+                                reviewDueDateDisplay.style.display = 'none';  // Hide if the review is complete
+                                console.log("Review due date hidden (Complete).");  // Debug: log hiding the due date
+                            } else {
+                                reviewDueDateDisplay.textContent = `Review Due Date: ${data.review_due_date}`;  // Update the due date
+                                console.log("Updated review due date:", data.review_due_date);  // Debug: log the new due date
+                            }
+                        }
+            
+                        toggleReviewEdit(false);  // Close the edit section after saving
+                    } else {
+                        alert("Error updating review: " + data.error);
+                    }
+                })
+                .catch(err => {
+                    alert("Failed to update review: " + err.message);
+                });
+            });
+        </script>
+    </body>
+</html>

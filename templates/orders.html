@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>All Orders</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+</head>
+<body>
+    <!-- Main Wrapper to Contain the Content and Apply Existing Borders -->
+    <div class="page-wrapper">
+        <!-- Dark Mode Toggle - Moved Inside the Content Wrapper -->
+        <div class="dark-mode-toggle">
+            <label for="dark-mode-checkbox">Dark Mode</label>
+            <input type="checkbox" id="dark-mode-checkbox" onclick="toggleDarkMode()">
+        </div>
+        
+            <!-- Banner-styled heading -->
+            <h1 class="banner-heading">All Orders</h1>
+
+        <!-- Search Bar and Filter Buttons -->
+        <div class="filters">
+            <div class="filters-left">
+                <input type="text" id="search-bar" placeholder="Search orders..." class="search-bar">
+                <button class="btn-filter" onclick="window.location.href='{{ url_for('orders', filter='all') }}'">All Orders</button>
+                <button class="btn-filter" onclick="window.location.href='{{ url_for('orders', filter='reviewed') }}'">Reviewed Orders</button>
+                <button class="btn-filter" onclick="window.location.href='{{ url_for('orders', filter='awaiting') }}'">Orders Awaiting Review</button>
+            </div>
+            <div class="filters-right">
+                <span id="item-count" class="item-count">Total Items: {{ total_items }}</span>
+            </div>
+        </div>
+
+        <!-- Search Functionality Script -->
+        <script>
+            document.getElementById('search-bar').addEventListener('input', function() {
+                var keyword = this.value.toLowerCase();
+                var rows = document.querySelectorAll('tbody tr');
+                rows.forEach(function(row) {
+                    var description = row.querySelector('td:first-child').textContent.toLowerCase();
+                    if (description.includes(keyword)) {
+                        row.style.display = 'table-row';
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+            });
+
+            function toggleDarkMode() {
+                document.body.classList.toggle('dark-mode');
+            }
+        </script>
+
+        <!-- Table with orders -->
+        <table class="orders-table">
+            <thead>
+                <tr>
+                    <th>Description</th>
+                    <th>Price</th>
+                    <th>Date Ordered</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for order in orders %}
+                <tr>
+                    <td>{{ order['description'] }}</td>
+                    <td class="price-column">{{ order['price'] }}</td>
+                    <td>{{ order['date_ordered'] }}</td>
+                    <td>
+                        <a href="{{ url_for('view_order', order_id=order['id']) }}" class="small-button">View</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <!-- Back to Dashboard Link -->
+        <div class="bottom-buttons">
+            <a href="{{ url_for('index') }}" class="button-link">Back to Dashboard</a>
+        </div>
+    </div>
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>

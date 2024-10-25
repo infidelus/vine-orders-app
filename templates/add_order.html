@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Add Order</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/simplemde.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="{{ url_for('static', filename='js/simplemde.min.js') }}"></script>
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+</head>
+<body>
+    <h1>Add a New Order</h1>
+    <form method="POST" action="{{ url_for('add_order') }}">
+        <!-- Other form fields here -->
+        
+        <label>Review:</label><br>
+        <textarea id="review" name="review"></textarea><br><br>
+        <button type="submit">Add Order</button>
+    </form>
+
+    <script>
+        var simplemde = new SimpleMDE({ element: document.getElementById("review") });
+    </script>
+</body>
+</html>

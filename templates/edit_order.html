@@ -1,0 +1,16 @@
+<link rel="stylesheet" href="{{ url_for('static', filename='simplemde/simplemde.min.css') }}">
+<script src="{{ url_for('static', filename='simplemde/simplemde.min.js') }}"></script>
+<link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+
+<form action="{{ url_for('update_review', order_id=order['id']) }}" method="POST">
+    <!-- Other fields for order details -->
+    <div>
+        <label for="review">Review:</label>
+        <textarea id="review" name="review">{{ order['review'] }}</textarea>
+    </div>
+    <button type="submit">Save Review</button>
+</form>
+
+<script>
+    var simplemde = new SimpleMDE({ element: document.getElementById("review") });
+</script>

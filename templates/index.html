@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Amazon Vine Orders - Index</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script> <!-- Link your script here -->
+</head>
+<body>
+    <!-- Main Wrapper to Contain the Content and Apply Existing Borders -->
+    <div class="page-wrapper">
+        <!-- Dark Mode Toggle - Moved Inside the Content Wrapper -->
+        <div class="dark-mode-toggle">
+            <label for="dark-mode-checkbox">Dark Mode</label>
+            <input type="checkbox" id="dark-mode-checkbox" onclick="toggleDarkMode()">
+        </div>
+
+        <!-- Main Heading with Existing Banner Styling -->
+        <h1 class="banner-heading">Amazon Vine Orders Dashboard</h1>
+
+        <!-- Statistics Section with Existing Borders -->
+        <div class="statistics-container">
+            <!-- Top Row of 4 Stats -->
+            <div class="stat-row">
+                <div class="stat-box">
+                    <h3>Total Orders</h3>
+                    <p>{{ total_orders }}</p>
+                </div>
+                <div class="stat-box">
+                    <h3>Total Value of Items Ordered</h3>
+                    <p>£{{ total_value }}</p>
+                </div>
+                <div class="stat-box">
+                    <h3>Items Ordered This Year</h3>
+                    <p>{{ items_ordered_current_year }}</p>
+                </div>
+                <div class="stat-box">
+                    <h3>Value of Items Ordered This Year</h3>
+                    <p>£{{ current_year_value }}</p>
+                </div>
+            </div>
+            
+            <!-- New Current Review Period Section -->
+            <div class="stat-row">
+                <div class="stat-box review-period">
+                    <h3>Current Review Period:</h3>
+                    <span id="review-start">{{ review_start }}</span> to 
+                    <span id="review-end">{{ review_end }}</span> 
+                    <button class="edit-button small-button" onclick="editReviewPeriod()">Edit</button>
+                </div>
+            </div>
+
+            <!-- Current Review Period Stats Section -->
+            <div class="stat-box">
+                <h3>Items Ordered (Current Review Period)</h3>
+                <p data-type="items_ordered">{{ items_ordered_review_period }}</p>
+            </div>
+            <div class="stat-box">
+                <h3>Items Reviewed (Current Review Period)</h3>
+                <p data-type="items_reviewed">{{ items_reviewed_review_period }}</p>
+            </div>
+            <div class="stat-box">
+                <h3>Review Percentage (Current Review Period)</h3>
+                <p data-type="review_percentage" style="color: {{ review_percentage_color }};">
+                    {{ review_percentage }}
+                </p>
+            </div>
+        </div>
+
+        <!-- Add a New Order Section -->
+        <div class="new-order-container">
+            <h2>Add a New Order</h2>
+            <form method="POST" action="{{ url_for('add_order') }}">
+                <div class="form-row">
+                    <label for="url" class="text-label">Product URL:</label>
+                    <input type="text" id="url" name="url" class="url-input" required>
+                    <button type="button" id="find-button" onclick="fetchProductData()">Find</button>
+                </div>
+                <div class="form-row">
+                    <label for="description">Product Description:</label>
+                    <input type="text" id="description" name="description" class="full-width-field" required>
+                </div>
+                <div class="form-row">
+                    <label for="price">Product Price (£):</label>
+                    <input type="number" id="price" name="price" step="0.01" class="full-width-field" required>
+                </div>
+                <div class="form-row">
+                    <label for="date_ordered">Date Ordered:</label><br>
+                    <input type="date" id="date_ordered" name="date_ordered" class="full-width-field" required>
+
+                    <script>
+                        document.addEventListener("DOMContentLoaded", function() {
+                            var today = new Date().toISOString().split('T')[0];
+                            document.getElementById("date_ordered").value = today;
+                        });
+                    </script>
+                </div>
+                <div class="form-row">
+                    <button class="button-link" type="submit">Add Order</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="links">
+            <br>
+            <div class="bottom-buttons">
+                <a href="{{ url_for('orders') }}" class="button-link">View and Edit Orders</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function fetchProductData() {
+            const url = document.getElementById("url").value;
+
+            if (!url) {
+                alert("Please enter a valid URL");
+                return;
+            }
+
+            try {
+                const response = await fetch("/fetch-product-info", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ url: url }),
+                });
+
+                if (!response.ok) {
+                    throw new Error("Failed to fetch product data");
+                }
+
+                const data = await response.json();
+                document.getElementById("description").value = data.description || "";
+                document.getElementById("price").value = data.price || 0;
+            } catch (error) {
+                console.error("Error:", error);
+                alert("Could not fetch product data.");
+            }
+        }
+    </script>
+</body>
+</html>
