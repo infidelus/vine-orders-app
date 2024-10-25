@@ -126,6 +126,16 @@ def init_db():
             end_date TEXT NOT NULL
         )
     ''')
+    
+    # Check if review_periods is empty and insert a default period if necessary
+    cursor.execute('SELECT COUNT(*) FROM review_periods')
+    count = cursor.fetchone()[0]
+    if count == 0:
+        # Insert a default review period
+        cursor.execute('''
+            INSERT INTO review_periods (start_date, end_date)
+            VALUES (DATE('now', 'start of month'), DATE('now', 'start of month', '+1 month', '-1 day'))
+        ''')
 
     conn.commit()
     conn.close()
