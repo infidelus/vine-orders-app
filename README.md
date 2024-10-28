@@ -23,6 +23,6 @@ I should also mention and say thanks to Reddit user AussieA1 who shared the code
 
 This is a Python project so you will need to install Python if it is not already installed.  I used 3.12 for my Docker setup but any recent version should work.  See [Python.org](https://www.python.org/downloads/).  Linux users should already have Python installed so can move straight to the next step.
 
-To install the dependencies in requirements.txt you will need pip.  Please see https://pip.pypa.io/en/stable/installation/.
+To install the dependencies in requirements.txt you will need pip.  Please see the [pip documentation](https://pip.pypa.io/en/stable/installation/).
 
-If you want to run this script as a Docker container you will also need to install Docker.  Instructions can be found on the dockerdocs website - https://docs.docker.com/engine/install/.
+If you want to run this script as a Docker container you will also need to install Docker.  Instructions can be found on the [dockerdocs website](https://docs.docker.com/engine/install/).
