@@ -26,3 +26,5 @@ This is a Python project so you will need to install Python if it is not already
 To install the dependencies in requirements.txt you will need pip.  Please see the [pip documentation](https://pip.pypa.io/en/stable/installation/).
 
 If you want to run this script as a Docker container you will also need to install Docker.  Instructions can be found on the [dockerdocs website](https://docs.docker.com/engine/install/).
+
+Once installed you simply need to run app.py from the command line / terminal.  This will either be in the form of 'python app.py' or 'python3 app.py', depending on your Operating System.  Once you have it working you can add a desktop shortcut to launch it if you are not running it 24/7 in a Docker or other web server.
