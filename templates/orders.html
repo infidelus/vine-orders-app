@@ -26,6 +26,7 @@
                 <button class="btn-filter" onclick="window.location.href='{{ url_for('orders', filter='all') }}'">All Orders</button>
                 <button class="btn-filter" onclick="window.location.href='{{ url_for('orders', filter='reviewed') }}'">Reviewed Orders</button>
                 <button class="btn-filter" onclick="window.location.href='{{ url_for('orders', filter='awaiting') }}'">Orders Awaiting Review</button>
+                <button class="btn-filter" onclick="window.location.href='{{ url_for('orders', filter='legally_mine') }}'">Items Legally Mine</button>
             </div>
             <div class="filters-right">
                 <span id="item-count" class="item-count">Total Items: {{ total_items }}</span>
@@ -64,16 +65,16 @@
             </thead>
             <tbody>
                 {% for order in orders %}
-                <tr>
-                    <td>{{ order['description'] }}</td>
-                    <td class="price-column">{{ order['price'] }}</td>
-                    <td>{{ order['date_ordered'] }}</td>
-                    <td>
-                        <a href="{{ url_for('view_order', order_id=order['id']) }}" class="small-button">View</a>
-                    </td>
-                </tr>
+                    <tr class="{% if order['review_date'] and order['review_date'] <= six_months_ago %}legally-mine{% endif %}">
+                        <td>{{ order['description'] }}</td>
+                        <td class="price-column">{{ order['price'] }}</td>
+                        <td>{{ order['date_ordered'] }}</td>
+                        <td>
+                            <a href="{{ url_for('view_order', order_id=order['id']) }}" class="small-button">View</a>
+                        </td>
+                    </tr>
                 {% endfor %}
-            </tbody>
+           </tbody>
         </table>
 
         <!-- Back to Dashboard Link -->
