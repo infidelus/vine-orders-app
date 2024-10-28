@@ -430,6 +430,16 @@ h1 {
     background-color: #444444;  /* Highlight background on hover */
 }
 
+/* Highlight items that are now legally mine */
+.legally-mine {
+    background-color: #d8f3dc !important;  /* Light green with !important to override row alternation */
+}
+
+/* Dark mode adjustment for legally-mine rows */
+.dark-mode .legally-mine {
+    background-color: #3c6e47 !important; /* A darker green shade for dark mode */
+}
+
 /* Ensure search bar looks proper in dark mode */
 .dark-mode .search-bar {
     background-color: #333333;
