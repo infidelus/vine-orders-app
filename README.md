@@ -18,3 +18,11 @@ A few images of the app:
 ![edit-order](https://github.com/user-attachments/assets/90c351dc-fad7-4c16-83f2-62eb98c3261e)
 
 I should also mention and say thanks to Reddit user AussieA1 who shared the code from the Python tkinter app he created himself that gave me the idea for this app, and which helped me get the Find button working to scrape the description and price from the Amazon website.
+
+## Installation
+
+This is a Python project so you will need to install Python if it is not already installed.  I used 3.12 for my Docker setup but any recent version should work.  See [Python.org](https://www.python.org/downloads/).  Linux users should already have Python installed so can move straight to the next step.
+
+To install the dependencies in requirements.txt you will need pip.  Please see https://pip.pypa.io/en/stable/installation/.
+
+If you want to run this script as a Docker container you will also need to install Docker.  Instructions can be found on the dockerdocs website - https://docs.docker.com/engine/install/.
