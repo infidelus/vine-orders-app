@@ -351,15 +351,20 @@ def orders():
     # Get the filter type, default to 'awaiting' if no filter is provided
     filter_type = request.args.get('filter', 'awaiting')
 
+    # Calculate the date for items that are legally yours (reviewed six months ago or more)
+    six_months_ago = (datetime.now() - timedelta(days=6 * 30)).strftime('%Y-%m-%d')
+
     # Query based on the filter type
     if filter_type == 'reviewed':
-        cursor.execute('SELECT id, description, price, date_ordered FROM orders WHERE review_date IS NOT NULL ORDER BY date_ordered DESC')
+        cursor.execute('SELECT id, description, price, date_ordered, review_date FROM orders WHERE review_date IS NOT NULL ORDER BY date_ordered DESC')
     elif filter_type == 'awaiting':
-        cursor.execute('SELECT id, description, price, date_ordered FROM orders WHERE review_date IS NULL ORDER BY date_ordered DESC')
+        cursor.execute('SELECT id, description, price, date_ordered, review_date FROM orders WHERE review_date IS NULL ORDER BY date_ordered DESC')
     elif filter_type == 'all':
-        cursor.execute('SELECT id, description, price, date_ordered FROM orders ORDER BY date_ordered DESC')
+        cursor.execute('SELECT id, description, price, date_ordered, review_date FROM orders ORDER BY date_ordered DESC')
+    elif filter_type == 'legally_mine':
+        cursor.execute('SELECT id, description, price, date_ordered, review_date FROM orders WHERE review_date <= ? ORDER BY date_ordered DESC', (six_months_ago,))
     else:
-        cursor.execute('SELECT id, description, price, date_ordered FROM orders WHERE review_date IS NULL ORDER BY date_ordered DESC')
+        cursor.execute('SELECT id, description, price, date_ordered, review_date FROM orders WHERE review_date IS NULL ORDER BY date_ordered DESC')
 
     # Fetch the filtered orders
     orders = cursor.fetchall()
@@ -371,6 +376,8 @@ def orders():
         cursor.execute('SELECT COUNT(*) FROM orders WHERE review_date IS NULL')
     elif filter_type == 'all':
         cursor.execute('SELECT COUNT(*) FROM orders')
+    elif filter_type == 'legally_mine':
+        cursor.execute('SELECT COUNT(*) FROM orders WHERE review_date <= ?', (six_months_ago,))
     else:
         cursor.execute('SELECT COUNT(*) FROM orders WHERE review_date IS NULL')
 
@@ -392,12 +399,13 @@ def orders():
             'id': order['id'],
             'description': order['description'],
             'price': formatted_price,
-            'date_ordered': datetime.strptime(order['date_ordered'], '%Y-%m-%d').strftime('%d/%m/%Y')
+            'date_ordered': datetime.strptime(order['date_ordered'], '%Y-%m-%d').strftime('%d/%m/%Y'),
+            'review_date': order['review_date']  # Include review_date for highlighting
         }
         formatted_orders.append(formatted_order)
 
-    # Pass total_items to the template
-    return render_template('orders.html', orders=formatted_orders, total_items=total_items)
+    # Pass total_items and six_months_ago to the template
+    return render_template('orders.html', orders=formatted_orders, total_items=total_items, six_months_ago=six_months_ago, filter=filter_type)
 
 # View and edit a single order
 @app.route('/orders/<int:order_id>', methods=['GET'])
