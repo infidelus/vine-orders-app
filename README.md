@@ -28,3 +28,13 @@ To install the dependencies in requirements.txt you will need pip.  Please see t
 If you want to run this script as a Docker container you will also need to install Docker.  Instructions can be found on the [dockerdocs website](https://docs.docker.com/engine/install/).
 
 Once installed you simply need to run app.py from the command line / terminal.  This will either be in the form of 'python app.py' or 'python3 app.py', depending on your Operating System.  Once you have it working you can add a desktop shortcut to launch it if you are not running it 24/7 in a Docker or other web server.
+
+If you are running the app on your local machine then it will be available in your web browser at http://127.0.0.1:5000/.  Substitute the IP address if you are running the app on a different machine.  The port number can also be changed by editing app.py.  At the very bottom of the script you will see the line:
+
+> app.run(host='0.0.0.0', port=5000)
+
+Change the port number as required, save the file and then restart the app and adjust the browser URL port.
+
+## Import Vine Orders
+
+There is a hidden route where you can import your previous orders.  Download your data from Amazon.  There should be a VineOrders.csv file, or something similar (rename it to VineOrders.csv if it has a different filename) which whould have columns for url, date_ordered and description.  Move this file to the root folder of the app (where app.py is) then visit the hidden page (http://127.0.0.1:5000/import_csv for example).  If everything is in place you should see a message saying 'CSV data imported successfully!'.  If you see an error page instead then either the file is not in the correct location or the column headers are incorrect.  Correcting the errors should fix it but you could always try restarting the app.
