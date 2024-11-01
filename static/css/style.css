@@ -20,6 +20,10 @@ body {
     padding: 10px;            /* Adjust padding for proper spacing */
 }
 
+.import-button {
+    margin-left: auto;
+}
+
 /* Ensure consistent button styling */
 .bottom-buttons .button-link,
 .bottom-buttons .delete-button {
