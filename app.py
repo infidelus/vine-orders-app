@@ -549,21 +549,29 @@ def import_csv():
         conn = sqlite3.connect(DATABASE)
         cursor = conn.cursor()
 
+        new_items_count = 0  # Counter for new items added
+
         for row in reader:
             url = row['url']
             date_ordered = row['date_ordered']  # Assuming this is already in yyyy-mm-dd format
             description = row['description']
 
-            # Insert each row into the database
-            cursor.execute('''
-                INSERT INTO orders (url, description, date_ordered)
-                VALUES (?, ?, ?)
-            ''', (url, description, date_ordered))
-        
+            # Check if the URL already exists in the database
+            cursor.execute('SELECT COUNT(1) FROM orders WHERE url = ?', (url,))
+            exists = cursor.fetchone()[0]
+
+            # Only insert if the URL does not exist
+            if not exists:
+                cursor.execute('''
+                    INSERT INTO orders (url, description, date_ordered)
+                    VALUES (?, ?, ?)
+                ''', (url, description, date_ordered))
+                new_items_count += 1
+
         conn.commit()
         conn.close()
-    return 'CSV data imported successfully!'
     
+    return f'CSV data imported successfully! {new_items_count} new items added.'    
 # Route to switch to edit mode for the review period
 @app.route('/edit_review_period', methods=['POST'])
 def edit_review_period():
