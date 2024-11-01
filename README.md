@@ -11,10 +11,8 @@ When I decided see if ChatGPT could make a working application I also decided I 
 
 A few images of the app:
 
-![dashboard](https://github.com/user-attachments/assets/1d04ece4-14ce-43c4-9d36-ddec76cad04c)
-
-![orders](https://github.com/user-attachments/assets/83e23bad-009c-49ea-ab23-1dba09cb3bd3)
-
+![dashboard](https://github.com/user-attachments/assets/88b4c4f3-c5b0-4527-b8e9-9987630aafc0)
+![orders](https://github.com/user-attachments/assets/28b4ea89-35be-42f0-873c-432cdd78d2bf)
 ![edit-order](https://github.com/user-attachments/assets/90c351dc-fad7-4c16-83f2-62eb98c3261e)
 
 I should also mention and say thanks to Reddit user AussieA1 who shared the code from the Python tkinter app he created himself that gave me the idea for this app, and which helped me get the Find button working to scrape the description and price from the Amazon website.
