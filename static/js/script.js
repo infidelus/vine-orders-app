@@ -98,3 +98,17 @@ document.addEventListener('DOMContentLoaded', function () {
             .catch(error => console.error("Error fetching item count:", error));
     }
 });
+
+document.getElementById('importCsvButton').addEventListener('click', function() {
+    fetch('/import_csv', {
+        method: 'GET'
+    })
+    .then(response => response.json())
+    .then(data => {
+        alert(data.message);
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while importing the CSV file.');
+    });
+});
