@@ -4,7 +4,6 @@
     <title>Amazon Vine Orders - Index</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
-    <script src="{{ url_for('static', filename='js/script.js') }}"></script> <!-- Link your script here -->
 </head>
 <body>
     <!-- Main Wrapper to Contain the Content and Apply Existing Borders -->
@@ -105,7 +104,7 @@
             <br>
             <div class="bottom-buttons">
                 <a href="{{ url_for('orders') }}" class="button-link">View and Edit Orders</a>
-                <a href="{{ url_for('import_csv') }}" class="button-link import-button">Import CSV</a>
+                <button id="importCsvButton" class="button-link import-button">Import CSV</button>
             </div>
         </div>
     </div>
@@ -141,5 +140,8 @@
             }
         }
     </script>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+
 </body>
 </html>
