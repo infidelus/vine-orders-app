@@ -1,13 +1,13 @@
 # vine-orders-app
 A database to track Amazon Vine Orders
 
-This Flask application was written almost entirely by ChatGPT.  Other than fixing obvious mistakes I noticed it make my only input was telling it what I wanted, liked and didn't like, a little bit of CSS and HTML, and a lot of beta testing and banging my head on the table because, while ChatGPT is actually quite clever it's also exceptionally stupid sometimes and has the memory retention of a fish!
+This Flask application was written almost entirely by ChatGPT.  Other than fixing obvious mistakes I noticed it make my only input was telling it what I wanted, liked and didn't like, a little bit of CSS and HTML and a lot of beta testing and banging my head on the table because, while ChatGPT is actually quite clever it's also exceptionally stupid sometimes and has the memory retention of a fish!
 
-Other than the obvious bits you can see in the application, there is also a hidden import function as detailed in the import_csv route in app.py which requires a VineOrders.csv file to be in the root folder.  Additionally there is a Python script to import prices.  This was separate because when I started playing with the program I only had the Amazon data that I requested which, as Vine items are free, all show £0.00.  I was considering manually entering all the prices, and started to do so.  I then got exceptionally bored and, as I had another CSV file that I had been using up to that point that contained most of the prices, decided to ask ChatGPT to write me a script to match the URLS and import the relevant prices.
+Other than the obvious bits you can see in the application there is also a separate Python script to import prices.  This was separate because when I started playing with the program I only had the Amazon data that I requested which, as Vine items are free, all show £0.00.  I was considering manually entering all the prices, and started to do so.  I then got exceptionally bored and, as I had another CSV file that I had been using up to that point that contained most of the prices, decided to ask ChatGPT to write me a script to match the URLS and import the relevant prices.
 
-The application works quite well with the only notable issue being scraping the price on certain items, but this is likely because Amazon don't like it when we don't pay them to scrape product information from their site, and I think ChatGPT did rather a good job of the overall site in the end even if it had me swearing quite regularly during the whole process.
+The application works quite well with the only notable issue being scraping the price on certain items, but this is likely either because Amazon don't like it when we don't pay them to scrape product information from their site or that the product has no price information, and I think ChatGPT did rather a good job of the overall site in the end even if it had me swearing quite regularly during the whole process.
 
-When I decided see if ChatGPT could make a working application I also decided I wanted it running as a Docker container on my Unraid server so it was available 24/7/365 from whatever device I happened to be using.  It does not need to be a Docker, but you do need to have the dependencies listed in requirements.txt installed if you want to run it locally.
+When I decided see if ChatGPT could make a working application I also decided I wanted it running as a Docker container on my Unraid server so it was available 24/7/365 from whatever device I happened to be using.  It does not need to be a Docker but you do need to have the dependencies listed in requirements.txt installed if you want to run it locally.
 
 A few images of the app:
 
@@ -25,7 +25,7 @@ To install the dependencies in requirements.txt you will need pip.  Please see t
 
 If you want to run this script as a Docker container you will also need to install Docker.  Instructions can be found on the [dockerdocs website](https://docs.docker.com/engine/install/).
 
-Once installed you simply need to run app.py from the command line / terminal.  This will either be in the form of 'python app.py' or 'python3 app.py', depending on your Operating System.  Once you have it working you can add a desktop shortcut to launch it if you are not running it 24/7 in a Docker or other web server.
+Once installed you simply need to run app.py from the command line / terminal (which will start the simple web server).  This will either be in the form of 'python app.py' or 'python3 app.py', depending on your Operating System.  Once you have it working you can add a desktop shortcut to launch it if you are not running it 24/7 in a Docker or other web server.  The other alternative is to set it up as a scheduled task (Windows) or cron job (Linux) so it starts at login.
 
 If you are running the app on your local machine then it will be available in your web browser at http://127.0.0.1:5000/.  Substitute the IP address if you are running the app on a different machine.  The port number can also be changed by editing app.py.  At the very bottom of the script you will see the line:
 
@@ -35,4 +35,6 @@ Change the port number as required, save the file and then restart the app and a
 
 ## Import Vine Orders
 
-There is also now a button on the index page that allows you to import Vine orders.  This should only import items where the URL does not already exist in the database.  First, download your data from Amazon.  There should be a VineOrders.csv file, or something similar (rename it to VineOrders.csv if it has a different filename) which would have columns for url, date_ordered and description.  Move this file to the root folder of the app (where app.py is) then press the 'Import CSV' button.  If everything is in place you should see a popup message either confirming the data has been imported, including any new records that do not exist in the database, or that VineOrders.csv is missing from the root folder.
+While this was initially a hidden function, I received a request to add a button on the index page that allows you to import Vine orders.  This should only import items where the URL does not already exist in the database.
+
+First, download your data from Amazon.  There should be a VineOrders.csv file, or something similar (rename it to VineOrders.csv if it has a different filename) which would have columns for url, date_ordered and description.  Move this file to the root folder of the app (where app.py is) then press the 'Import CSV' button.  If everything is in place you should see a popup message either confirming the data has been imported, including any new records that do not exist in the database, or that VineOrders.csv is missing from the root folder.
