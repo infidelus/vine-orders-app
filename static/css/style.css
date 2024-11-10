@@ -88,7 +88,15 @@ body {
 
 /* Optional: make sure the columns have equal height */
 .left-column {
+    position: relative;
     margin-right: 20px;
+}
+
+.vine-link-container {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    margin: 20px; /* Optional margin for spacing */
 }
 
 /* Left column styling */
