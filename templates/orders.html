@@ -54,29 +54,31 @@
         </script>
 
         <!-- Table with orders -->
-        <table class="orders-table">
-            <thead>
-                <tr>
-                    <th>Description</th>
-                    <th>Price</th>
-                    <th>Date Ordered</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for order in orders %}
-                    <tr class="{% if order['review_date'] and order['review_date'] <= six_months_ago %}legally-mine{% endif %}">
-                        <td>{{ order['description'] }}</td>
-                        <td class="price-column">{{ order['price'] }}</td>
-                        <td>{{ order['date_ordered'] }}</td>
-                        <td>
-                            <a href="{{ url_for('view_order', order_id=order['id']) }}" class="small-button">View</a>
-                        </td>
+        <div class="table-container">
+            <table class="orders-table">
+                <thead>
+                    <tr>
+                        <th>Description</th>
+                        <th>Price</th>
+                        <th>Date Ordered</th>
+                        <th>Actions</th>
                     </tr>
-                {% endfor %}
-           </tbody>
-        </table>
-
+                </thead>
+                <tbody>
+                    {% for order in orders %}
+                        <tr class="{% if order['review_date'] and order['review_date'] <= six_months_ago %}legally-mine{% endif %}">
+                            <td>{{ order['description'] }}</td>
+                            <td class="price-column">{{ order['price'] }}</td>
+                            <td>{{ order['date_ordered'] }}</td>
+                            <td>
+                                <a href="{{ url_for('view_order', order_id=order['id']) }}" class="small-button">View</a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+               </tbody>
+            </table>
+        </div>
+        
         <!-- Back to Dashboard Link -->
         <div class="bottom-buttons">
             <a href="{{ url_for('index') }}" class="button-link">Back to Dashboard</a>

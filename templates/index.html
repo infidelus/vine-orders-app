@@ -38,31 +38,33 @@
                     <p>£{{ current_year_value }}</p>
                 </div>
             </div>
-            
+        
             <!-- New Current Review Period Section -->
             <div class="stat-row">
                 <div class="stat-box review-period">
                     <h3>Current Review Period:</h3>
                     <span id="review-start">{{ review_start }}</span> to 
-                    <span id="review-end">{{ review_end }}</span> 
+                    <span id="review-end">{{ review_end }}</span>
                     <button class="edit-button small-button" onclick="editReviewPeriod()">Edit</button>
                 </div>
             </div>
-
+        
             <!-- Current Review Period Stats Section -->
-            <div class="stat-box">
-                <h3>Items Ordered (Current Review Period)</h3>
-                <p data-type="items_ordered">{{ items_ordered_review_period }}</p>
-            </div>
-            <div class="stat-box">
-                <h3>Items Reviewed (Current Review Period)</h3>
-                <p data-type="items_reviewed">{{ items_reviewed_review_period }}</p>
-            </div>
-            <div class="stat-box">
-                <h3>Review Percentage (Current Review Period)</h3>
-                <p data-type="review_percentage" style="color: {{ review_percentage_color }};">
-                    {{ review_percentage }}
-                </p>
+            <div class="stat-row">
+                <div class="stat-box">
+                    <h3>Items Ordered (Current Review Period)</h3>
+                    <p data-type="items_ordered">{{ items_ordered_review_period }}</p>
+                </div>
+                <div class="stat-box">
+                    <h3>Items Reviewed (Current Review Period)</h3>
+                    <p data-type="items_reviewed">{{ items_reviewed_review_period }}</p>
+                </div>
+                <div class="stat-box">
+                    <h3>Review Percentage (Current Review Period)</h3>
+                    <p data-type="review_percentage" style="color: {{ review_percentage_color }};">
+                        {{ review_percentage }}
+                    </p>
+                </div>
             </div>
         </div>
 
