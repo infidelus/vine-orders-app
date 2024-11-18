@@ -62,13 +62,15 @@ body {
     gap: 10px;                /* Add gap between "Back to Orders" and "Back to Dashboard" */
 }
 
-/* Right column and left column layout */
+/* Container holding the left and right columns */
 .container {
     display: flex;
-    gap: 20px; /* Space between left and right columns */
-    padding: 20px;
-    border: none;
-    box-sizing: border-box;
+    flex-wrap: wrap; /* Enable wrapping for small screens */
+    gap: 20px; /* Space between columns */
+    padding: 20px; /* Padding around the content */
+    box-sizing: border-box; /* Include padding in width calculations */
+    width: 100%; /* Ensure the container spans the full width */
+    margin: 0; /* Remove any automatic centering or extra gaps */
 }
 
 /* General dark mode background and text color */
@@ -77,19 +79,20 @@ body {
     color: #f1f1f1;             /* Light text for content */
 }
 
-/* Left and right columns with subtle border and background */
+/* Left and right columns */
 .left-column, .right-column {
     padding: 20px;
     background-color: #f9f9f9;
     border-radius: 6px;
-    flex: 1;
+    flex: 1 1 calc(50% - 20px); /* Take up 50% width minus gap */
+    min-width: 300px; /* Ensure columns don’t shrink too much */
     border: 1px solid #e0e0e0;
+    box-sizing: border-box; /* Include padding and border in width */
 }
 
-/* Optional: make sure the columns have equal height */
+/* Optional: Equal height adjustment (only if needed) */
 .left-column {
     position: relative;
-    margin-right: 20px;
 }
 
 .vine-link-container {
@@ -107,7 +110,7 @@ body {
 }
 
 .right-column {
-    margin-left: 20px;
+    position: relative;
 }
 
 /* Right column styling */
@@ -147,10 +150,6 @@ body {
 .dark-mode .right-column:hover {
     background-color: #333333;  /* Keep the background the same on hover */
 }
-
-
-
-
 
 /* General banner style for headings */
 .banner-heading {
@@ -257,7 +256,6 @@ form button {
     text-decoration: none; /* Remove underline */
     transition: background-color 0.3s ease; /* Smooth transition for link */
 }
-
 
 .dark-mode a.button-link {
     color: #ffffff;            /* Make sure buttons and links are visible */
@@ -390,6 +388,11 @@ h1 {
     background-color: #c82333;  /* Darker red on hover */
 }
 
+.table-container {
+    overflow-x: auto; /* Enable horizontal scrolling */
+    width: 100%;      /* Make the container take full width */
+}
+
 /* Orders Table Styling */
 .orders-table {
     width: 100%;
@@ -412,6 +415,7 @@ h1 {
     background-color: #f2f2f2;
 }
 
+/* Adjust the table cell width for responsiveness */
 .orders-table td:first-child {
     max-width: 1400px; /* Adjust this width as needed */
     white-space: nowrap;
@@ -468,10 +472,13 @@ h1 {
     border-radius: 4px;
     margin-right: 5px; /* Adjusted for extra space */
     margin-bottom: 20px;
+    min-width: 200px; /* Ensures it doesn't shrink too small */
+    max-width: 100%; /* Prevents overflow */
 }
 
 /* Filter buttons */
 .btn-filter {
+    flex-shrink: 0; /* Prevents buttons from shrinking too much */
     padding: 8px 12px;
     background-color: #007bff;
     color: white;
@@ -497,24 +504,35 @@ h1 {
     background-color: #0056b3;
 }
 
-/* Ensure the filters are aligned in a single row */
+/* Filters container */
 .filters {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-wrap: wrap; /* Enables wrapping when space runs out */
+    gap: 10px; /* Adds spacing between elements */
     width: 100%;
+    box-sizing: border-box; /* Ensures padding doesn't affect width calculations */
+    margin-bottom: 20px; /* Adds space below the filters to separate them from the table */
 }
 
 /* Left section with search bar and buttons */
 .filters-left {
     display: flex;
+    flex-wrap: wrap; /* Ensures wrapping on smaller screens */
     align-items: center;
-    gap: 10px; /* Adds spacing between the elements */
+    gap: 10px; /* Adds spacing between elements */
+    flex: 1; /* Allows it to grow and shrink */
+    min-width: 0; /* Prevents overflow when shrinking */
 }
 
-/* Right-aligned Total Items section */
+/* Right section with item count */
 .filters-right {
-    margin-left: auto; /* Pushes the item count to the right */
+    flex-shrink: 0; /* Prevents the "Total Items" from shrinking */
+    text-align: right;
+    margin-left: auto; /* Pushes it to the far right */
+    white-space: nowrap; /* Keeps the text on one line */
+    margin-top: 10px; /* Adds spacing when wrapping */
 }
 
 /* Total Items Styling */
@@ -524,34 +542,47 @@ h1 {
     white-space: nowrap;
 }
 
-/* Ensure stat boxes are displayed in two rows of four */
+/* Ensure stat boxes are displayed in multiple rows and columns */
 .statistics-container {
     display: flex;
     flex-wrap: wrap;
-    justify-content: space-between;
-    gap: 20px; /* Add some space between the rows */
+    gap: 20px; /* Add some space between the rows and boxes */
+    padding: 20px; /* Optional padding for inner spacing */
+    width: 100%; /* Ensure the container takes full width */
+    box-sizing: border-box; /* Include padding in the width calculation */
 }
 
+/* Top row of statistics */
 .stat-row {
     display: flex;
+    flex-wrap: wrap; /* Ensure rows wrap */
     width: 100%;
     justify-content: space-between; /* Spread the stat boxes evenly */
+    gap: 15px; /* Add space between boxes */
 }
 
+/* Stat box styling */
 .stat-box {
-    flex: 1;
+    flex: 1 1 calc(25% - 15px); /* Each box takes up 25% of the row, minus the gap */
     min-width: 200px; /* Adjust to fit your layout */
     padding: 15px;
     background-color: #f9f9f9;
     border: 1px solid #ccc;
     text-align: center;
+    box-sizing: border-box; /* Ensure padding doesn't affect width calculation */
 }
 
+/* Special styling for review period box */
 .review-period {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 5px;
+    flex: 1 1 100%; /* Make the review period box full width */
+    background-color: #f0f0f0; /* Slightly different background for distinction */
+    padding: 10px 15px;
+    margin-bottom: 20px; /* Add space below the review period */
+}
+
+/* Adjust the text color of the review percentage dynamically */
+[data-type="review_percentage"] {
+    font-weight: bold;
 }
 
 .review-period h3 {
@@ -736,4 +767,118 @@ html[data-theme='dark'],body[data-theme='dark'] {
     .form-row {
         grid-template-columns: 1fr; /* Single column on mobile */
     }
+}
+
+/* Medium screens (below 1400px) */
+@media (max-width: 1400px) {
+    .orders-table td:first-child {
+        max-width: 1000px; /* Slightly reduced truncation for mid-large screens */
+    }
+}
+
+/* Medium-small screens (below 1000px) */
+@media (max-width: 1000px) {
+    .orders-table td:first-child {
+        max-width: 700px; /* Moderate truncation for mid-sized displays */
+    }
+}
+
+/* Small screens (below 700px) */
+@media (max-width: 700px) {
+    .orders-table td:first-child {
+        max-width: 200px; /* More compact for small screens */
+    }
+}
+
+/* Extra small screens (below 400px) */
+@media (max-width: 400px) {
+    .orders-table td:first-child {
+        max-width: 100px; /* Strict truncation for very compact displays */
+    }
+}
+
+/* General table adjustments for all smaller screens */
+@media (max-width: 1000px) {
+    .orders-table th, .orders-table td {
+        font-size: 0.9em; /* Adjust font size */
+        padding: 6px; /* Reduce padding */
+    }
+}
+
+@media (max-width: 600px) {
+    .orders-table th, .orders-table td {
+        font-size: 0.8em; /* Further adjust for tiny screens */
+        padding: 4px;
+    }
+}
+
+/* Media queries for smaller screens */
+@media (max-width: 1000px) {
+    .filters {
+        flex-direction: column; /* Stacks elements vertically */
+        align-items: flex-start; /* Aligns items to the left */
+        margin-bottom: 20px; /* Ensure enough space below the filters */
+    }
+
+    .filters-left,
+    .filters-right {
+        width: 100%; /* Each section takes up the full width */
+        text-align: left; /* Aligns content to the left */
+    }
+
+    .filters-right {
+        margin-left: 0; /* Removes unnecessary margin */
+    }
+}
+
+@media (max-width: 600px) {
+    .btn-filter {
+        flex: 1; /* Makes buttons expand evenly */
+        text-align: center;
+    }
+
+    .filters-right {
+        text-align: center; /* Centers the "Total Items" text for smaller screens */
+    }
+}
+
+/* Responsive Breakpoints */
+@media (max-width: 768px) {
+    .stat-box {
+        flex: 1 1 calc(50% - 15px); /* 2 stats per row on tablets */
+    }
+
+    .review-period {
+        flex: 1 1 100%; /* Full width for the review period on tablets */
+    }
+
+    .stat-row {
+        flex-wrap: wrap; /* Ensures the rows wrap correctly */
+    }
+}
+
+@media (max-width: 480px) {
+    .stat-box {
+        flex: 1 1 100%; /* Full width for each stat on small screens */
+    }
+
+    .review-period {
+        flex: 1 1 100%; /* Keep full width for the review period */
+    }
+}
+
+/* Responsive behavior for smaller screens */
+@media (max-width: 768px) {
+    .left-column,
+    .right-column {
+        flex: 1 1 100%; /* Stack columns vertically */
+        margin: 0; /* Reset margins for proper stacking */
+    }
+}
+
+/* Ensure ultra-wide displays don’t leave gaps */
+body, html {
+    margin: 0; /* Reset default margins */
+    padding: 0; /* Reset default padding */
+    width: 100%; /* Ensure the body spans the full width */
 }
