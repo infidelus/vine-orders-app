@@ -393,17 +393,25 @@ h1 {
     width: 100%;      /* Make the container take full width */
 }
 
+
+
+
+
+
 /* Orders Table Styling */
 .orders-table {
     width: 100%;
     border-collapse: collapse;
     margin-bottom: 20px;
+    table-layout: auto; /* Force consistent column widths */
 }
 
 .orders-table th, .orders-table td {
     padding: 12px;
     text-align: left;
     border: 1px solid #e0e0e0;
+    overflow: hidden; /* Ensure content doesn't spill */
+    text-overflow: ellipsis;
 }
 
 .orders-table th {
@@ -415,36 +423,63 @@ h1 {
     background-color: #f2f2f2;
 }
 
-/* Adjust the table cell width for responsiveness */
+/* Truncate long text in the first column */
 .orders-table td:first-child {
-    max-width: 1400px; /* Adjust this width as needed */
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    max-width: 800px; /* Default width for the first column */
+}
+
+/* Column-specific adjustments */
+.orders-table td:nth-child(2),
+.orders-table td:nth-child(4) {
+    white-space: nowrap;
+    width: 1%; /* Shrink-to-fit for content */
+}
+
+.orders-table td:nth-child(3),
+.orders-table th:nth-child(3) {
+    width: 60px; /* Set a specific width for the Date Ordered column */
+    text-align: center; /* Align text for better readability */
+    white-space: nowrap; /* Prevent wrapping */
+}
+
+.orders-table td:nth-child(4) {
+    text-align: center;
 }
 
 /* Dark mode table styling */
 .dark-mode .orders-table {
-    background-color: #2a2a2a;  /* Dark background for the table body */
-    color: #f1f1f1;             /* Light text for table content */
+    background-color: #2a2a2a;
+    color: #f1f1f1;
 }
 
 .dark-mode .orders-table th {
-    background-color: #3a3a3a;  /* Darker background for the table header */
-    color: #f1f1f1;             /* Light text for the table header */
+    background-color: #3a3a3a;
+    color: #f1f1f1;
 }
 
 .dark-mode .orders-table tbody tr:nth-child(odd) {
-    background-color: #3a3a3a;  /* Darker background for odd rows */
+    background-color: #3a3a3a;
 }
 
 .dark-mode .orders-table tbody tr:nth-child(even) {
-    background-color: #2a2a2a;  /* Slightly lighter background for even rows */
+    background-color: #2a2a2a;
 }
 
 .dark-mode .orders-table tbody tr:hover {
-    background-color: #444444;  /* Highlight background on hover */
+    background-color: #444444;
 }
+
+.orders-table .price-column {
+    text-align: right;
+}
+
+
+
+
+
 
 /* Highlight items that are now legally mine */
 .legally-mine {
@@ -533,6 +568,7 @@ h1 {
     margin-left: auto; /* Pushes it to the far right */
     white-space: nowrap; /* Keeps the text on one line */
     margin-top: 10px; /* Adds spacing when wrapping */
+    width: 100%; /* Each section takes up the full width */
 }
 
 /* Total Items Styling */
@@ -662,10 +698,6 @@ h1 {
     width: 100%;
 }
 
-.orders-table .price-column {
-    text-align: right;
-}
-
 .dark-mode-toggle {
     position: absolute;
     top: 10px;  /* Adjust as needed to align it vertically */
@@ -769,45 +801,36 @@ html[data-theme='dark'],body[data-theme='dark'] {
     }
 }
 
-/* Medium screens (below 1400px) */
-@media (max-width: 1400px) {
+/* Responsiveness for smaller screens */
+@media (max-width: 1200px) {
     .orders-table td:first-child {
-        max-width: 1000px; /* Slightly reduced truncation for mid-large screens */
+        max-width: 600px; /* Reduce the width of the first column */
     }
 }
 
-/* Medium-small screens (below 1000px) */
-@media (max-width: 1000px) {
+@media (max-width: 900px) {
     .orders-table td:first-child {
-        max-width: 700px; /* Moderate truncation for mid-sized displays */
+        max-width: 400px; /* Further reduce for mid-sized screens */
     }
 }
 
-/* Small screens (below 700px) */
-@media (max-width: 700px) {
+@media (max-width: 600px) {
     .orders-table td:first-child {
-        max-width: 200px; /* More compact for small screens */
+        max-width: 200px; /* Compact for smaller screens */
     }
 }
 
-/* Extra small screens (below 400px) */
-@media (max-width: 400px) {
-    .orders-table td:first-child {
-        max-width: 100px; /* Strict truncation for very compact displays */
-    }
-}
-
-/* General table adjustments for all smaller screens */
+/* Reduce font size and padding for smaller screens */
 @media (max-width: 1000px) {
     .orders-table th, .orders-table td {
-        font-size: 0.9em; /* Adjust font size */
-        padding: 6px; /* Reduce padding */
+        font-size: 0.9em;
+        padding: 6px;
     }
 }
 
 @media (max-width: 600px) {
     .orders-table th, .orders-table td {
-        font-size: 0.8em; /* Further adjust for tiny screens */
+        font-size: 0.8em;
         padding: 4px;
     }
 }
@@ -826,21 +849,11 @@ html[data-theme='dark'],body[data-theme='dark'] {
         text-align: left; /* Aligns content to the left */
     }
 
-    .filters-right {
-        margin-left: 0; /* Removes unnecessary margin */
-    }
-}
-
 @media (max-width: 600px) {
     .btn-filter {
         flex: 1; /* Makes buttons expand evenly */
         text-align: center;
     }
-
-    .filters-right {
-        text-align: center; /* Centers the "Total Items" text for smaller screens */
-    }
-}
 
 /* Responsive Breakpoints */
 @media (max-width: 768px) {
