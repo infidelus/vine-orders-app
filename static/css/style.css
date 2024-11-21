@@ -542,7 +542,7 @@ h1 {
     gap: 10px; /* Adds spacing between elements */
     width: 100%;
     box-sizing: border-box; /* Ensures padding doesn't affect width calculations */
-    margin-bottom: 20px; /* Adds space below the filters to separate them from the table */
+/*    margin-bottom: 20px; /* Adds space below the filters to separate them from the table */
 }
 
 /* Left section with search bar and buttons */
@@ -561,8 +561,7 @@ h1 {
     text-align: right;
     margin-left: auto; /* Pushes it to the far right */
     white-space: nowrap; /* Keeps the text on one line */
-    margin-top: 10px; /* Adds spacing when wrapping */
-    width: 100%; /* Each section takes up the full width */
+    width: auto; /* Let the width adjust to its content */
 }
 
 /* Total Items Styling */
@@ -840,6 +839,15 @@ html[data-theme='dark'],body[data-theme='dark'] {
         width: 100%; /* Each section takes up the full width */
         text-align: left; /* Aligns content to the left */
     }
+    
+/* Wrapping behavior for smaller screens */
+@media (max-width: 600px) {
+    .filters-right {
+        width: 100%; /* Take full width on small screens */
+        text-align: left; /* Align text to the left for better readability */
+        margin-top: 10px;
+    }
+}
 
 @media (max-width: 600px) {
     .btn-filter {
