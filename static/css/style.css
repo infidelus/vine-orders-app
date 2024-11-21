@@ -308,12 +308,6 @@ h1 {
     background-color: #3b73d1;  /* Darker blue on hover */
 }
 
-/* Aligning and spacing adjustments */
-.form-row {
-    display: flex;
-    align-items: center;
-}
-
 .text-label {
     width: 20%; /* Adjust label width as needed to align text fields */
     white-space: nowrap; /* Prevents the label from wrapping */
@@ -583,7 +577,6 @@ h1 {
     display: flex;
     flex-wrap: wrap;
     gap: 20px; /* Add some space between the rows and boxes */
-    padding: 20px; /* Optional padding for inner spacing */
     width: 100%; /* Ensure the container takes full width */
     box-sizing: border-box; /* Include padding in the width calculation */
 }
@@ -613,7 +606,6 @@ h1 {
     flex: 1 1 100%; /* Make the review period box full width */
     background-color: #f0f0f0; /* Slightly different background for distinction */
     padding: 10px 15px;
-    margin-bottom: 20px; /* Add space below the review period */
 }
 
 /* Adjust the text color of the review percentage dynamically */
@@ -639,7 +631,7 @@ h1 {
 /* Container for the "Add New Order" form to match the stat boxes */
 .new-order-container {
     background-color: #f9f9f9;
-    padding: 20px;
+    padding: 10px 20px 20px 20px;
     border: 1px solid #e0e0e0;
     border-radius: 8px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
@@ -689,7 +681,7 @@ h1 {
     flex: 1;
     margin-right: 10px;
     text-indent: 10px;
-    text-align: left; /* Align text to the right for the labels */
+    text-align: left; /* Align text to the left for the labels */
 }
 
 .form-row input {
