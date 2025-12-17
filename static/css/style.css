@@ -17,7 +17,7 @@ body {
 .bottom-buttons {
     display: flex;            /* Use flexbox for alignment */
     justify-content: space-between; /* Space out the left and right buttons */
-    padding: 10px;            /* Adjust padding for proper spacing */
+    padding: 12px;            /* Adjust padding for proper spacing */
 }
 
 .import-button {
@@ -382,15 +382,26 @@ h1 {
     background-color: #c82333;  /* Darker red on hover */
 }
 
+/* Orders table container */
 .table-container {
-    overflow-x: auto; /* Enable horizontal scrolling */
-    width: 100%;      /* Make the container take full width */
+    overflow-x: auto;
+    width: 100%;
+    margin-bottom: 5px; /* Compact when no pagination */
 }
 
+/* Pagination block */
+.pagination {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 6px;
+    margin-top: 16px;
+}
 
-
-
-
+/* Extra space only when pagination exists */
+.pagination + .bottom-buttons {
+    margin-top: 28px;
+}
 
 /* Orders Table Styling */
 .orders-table {
@@ -492,17 +503,13 @@ h1 {
     border: 1px solid #555555;
 }
 
-/* Search Bar */
+/* Base search input styling (appearance only) */
 .search-bar {
     padding: 8px;
     font-size: 16px;
-    width: 600px; /* Fixed width for the search bar */
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    margin-right: 5px; /* Adjusted for extra space */
-    margin-bottom: 20px;
-    min-width: 200px; /* Ensures it doesn't shrink too small */
-    max-width: 100%; /* Prevents overflow */
+    min-width: 200px;
+    max-width: 100%;
+    box-sizing: border-box;
 }
 
 /* Filter buttons */
@@ -535,33 +542,29 @@ h1 {
 
 /* Filters container */
 .filters {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap; /* Enables wrapping when space runs out */
-    gap: 10px; /* Adds spacing between elements */
-    width: 100%;
-    box-sizing: border-box; /* Ensures padding doesn't affect width calculations */
-/*    margin-bottom: 20px; /* Adds space below the filters to separate them from the table */
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto;
+    grid-template-areas:
+        "left right"
+        "left .";
+    align-items: start;
+    gap: 10px;
+    margin-bottom: 20px;
 }
 
-/* Left section with search bar and buttons */
 .filters-left {
+    grid-area: left;
     display: flex;
-    flex-wrap: wrap; /* Ensures wrapping on smaller screens */
+    flex-wrap: wrap;
     align-items: center;
-    gap: 10px; /* Adds spacing between elements */
-    flex: 1; /* Allows it to grow and shrink */
-    min-width: 0; /* Prevents overflow when shrinking */
+    gap: 10px;
 }
 
-/* Right section with item count */
 .filters-right {
-    flex-shrink: 0; /* Prevents the "Total Items" from shrinking */
-    text-align: right;
-    margin-left: auto; /* Pushes it to the far right */
-    white-space: nowrap; /* Keeps the text on one line */
-    width: auto; /* Let the width adjust to its content */
+    grid-area: right;
+    align-self: start;      /* important: never drift between rows */
+    margin-top: 8px;        /* tiny optical alignment tweak */
 }
 
 /* Total Items Styling */
@@ -785,113 +788,224 @@ html[data-theme='dark'],body[data-theme='dark'] {
     color: #CCCCCC !important;  /* Light gray for hover effect */
 }
 
-/* Adjust the form to have two columns where possible */
+/* ===============================
+   Responsive layout adjustments
+   =============================== */
+
+/* Adjust form layout on mobile */
 @media (max-width: 768px) {
     .form-row {
-        grid-template-columns: 1fr; /* Single column on mobile */
+        grid-template-columns: 1fr;
     }
 }
 
-/* Responsiveness for smaller screens */
+/* Orders table column width scaling */
 @media (max-width: 1200px) {
     .orders-table td:first-child {
-        max-width: 600px; /* Reduce the width of the first column */
+        max-width: 600px;
     }
 }
 
 @media (max-width: 900px) {
     .orders-table td:first-child {
-        max-width: 400px; /* Further reduce for mid-sized screens */
+        max-width: 400px;
     }
 }
 
 @media (max-width: 600px) {
     .orders-table td:first-child {
-        max-width: 200px; /* Compact for smaller screens */
+        max-width: 200px;
     }
 }
 
-/* Reduce font size and padding for smaller screens */
+/* Reduce table font size / padding */
 @media (max-width: 1000px) {
-    .orders-table th, .orders-table td {
+    .orders-table th,
+    .orders-table td {
         font-size: 0.9em;
         padding: 6px;
     }
 }
 
 @media (max-width: 600px) {
-    .orders-table th, .orders-table td {
+    .orders-table th,
+    .orders-table td {
         font-size: 0.8em;
         padding: 4px;
     }
 }
 
-/* Media queries for smaller screens */
-@media (max-width: 1000px) {
+/* Stack filters only on small screens */
+@media (max-width: 700px) {
     .filters {
-        flex-direction: column; /* Stacks elements vertically */
-        align-items: flex-start; /* Aligns items to the left */
-        margin-bottom: 20px; /* Ensure enough space below the filters */
+        flex-direction: column;
+        align-items: flex-start;
     }
 
     .filters-left,
     .filters-right {
-        width: 100%; /* Each section takes up the full width */
-        text-align: left; /* Aligns content to the left */
-    }
-    
-/* Wrapping behavior for smaller screens */
-@media (max-width: 600px) {
-    .filters-right {
-        width: 100%; /* Take full width on small screens */
-        text-align: left; /* Align text to the left for better readability */
-        margin-top: 10px;
+        width: 100%;
     }
 }
 
 @media (max-width: 600px) {
-    .btn-filter {
-        flex: 1; /* Makes buttons expand evenly */
-        text-align: center;
+    .filters-right {
+        margin-top: 10px;
     }
 
-/* Responsive Breakpoints */
+    .btn-filter {
+        flex: 1;
+        text-align: center;
+    }
+}
+
+/* Dashboard / stats responsiveness */
 @media (max-width: 768px) {
     .stat-box {
-        flex: 1 1 calc(50% - 15px); /* 2 stats per row on tablets */
+        flex: 1 1 calc(50% - 15px);
     }
 
     .review-period {
-        flex: 1 1 100%; /* Full width for the review period on tablets */
+        flex: 1 1 100%;
     }
 
     .stat-row {
-        flex-wrap: wrap; /* Ensures the rows wrap correctly */
+        flex-wrap: wrap;
     }
 }
 
 @media (max-width: 480px) {
-    .stat-box {
-        flex: 1 1 100%; /* Full width for each stat on small screens */
-    }
-
+    .stat-box,
     .review-period {
-        flex: 1 1 100%; /* Keep full width for the review period */
+        flex: 1 1 100%;
     }
 }
 
-/* Responsive behavior for smaller screens */
+/* Two-column layouts stack on smaller screens */
 @media (max-width: 768px) {
     .left-column,
     .right-column {
-        flex: 1 1 100%; /* Stack columns vertically */
-        margin: 0; /* Reset margins for proper stacking */
+        flex: 1 1 100%;
+        margin: 0;
     }
 }
 
-/* Ensure ultra-wide displays don’t leave gaps */
-body, html {
-    margin: 0; /* Reset default margins */
-    padding: 0; /* Reset default padding */
-    width: 100%; /* Ensure the body spans the full width */
+@media (max-width: 600px) {
+    .pagination {
+        justify-content: flex-start;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 6px;
+    }
+
+    .pagination a,
+    .pagination .current-page {
+        flex: 0 0 auto;
+        white-space: nowrap;
+    }
+}
+
+/* ===============================
+   Global layout sanity
+   =============================== */
+
+html,
+body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+}
+
+/* ===============================
+   Orders page – filters & search
+   =============================== */
+
+/* Search form must be layout-only */
+.search-form {
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: flex;
+    align-items: center;
+}
+
+.dark-mode .search-form {
+    background: transparent !important;
+}
+
+/* Orders page: responsive search bar sizing */
+.filters-left .search-bar {
+    width: clamp(280px, 40vw, 520px);
+    flex: 0 1 auto;
+    box-sizing: border-box;
+}
+
+/* Filter buttons spacing */
+.filters-left .btn-filter {
+    margin-bottom: 0;
+}
+
+/* ===============================
+   Pagination
+   =============================== */
+
+.pagination {
+    display: flex;
+    gap: 6px;
+    margin-top: 16px;
+}
+
+/* Page links */
+.pagination .page-link {
+    background-color: #4a4a4a;
+    color: #fff;
+    padding: 6px 12px;
+    border-radius: 4px;
+    text-decoration: none;
+    font-size: 0.9em;
+    border: 1px solid #666;
+}
+
+.pagination .page-link:hover {
+    background-color: #5a5a5a;
+}
+
+/* Active page */
+.pagination .current-page {
+    background-color: #777;
+    color: #000;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 0.9em;
+    font-weight: bold;
+    border: 1px solid #888;
+}
+
+/* Ellipsis */
+.pagination-ellipsis {
+    padding: 6px 8px;
+    color: #888;
+    user-select: none;
+}
+
+/* Dark mode */
+.dark-mode .pagination .page-link {
+    background-color: #444;
+    color: #eee;
+    border-color: #555;
+}
+
+.dark-mode .pagination .page-link:hover {
+    background-color: #555;
+}
+
+.dark-mode .pagination .current-page {
+    background-color: #888;
+    color: #000;
+    border-color: #888;
+}
+
+.dark-mode .pagination-ellipsis {
+    color: #aaa;
 }
