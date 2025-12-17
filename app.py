@@ -352,37 +352,66 @@ def orders():
     # Get the filter type, default to 'awaiting' if no filter is provided
     filter_type = request.args.get('filter', 'awaiting')
 
+    # Pagination (applies to ALL filters)
+    page = int(request.args.get('page', 1))
+    per_page = 50
+    offset = (page - 1) * per_page
+
+    # Server-side search (applies to ALL filters, so it works with pagination)
+    q = request.args.get('q', '').strip()
+
     # Calculate the date for items that are legally yours (reviewed six months ago or more)
     six_months_ago = (datetime.now() - timedelta(days=6 * 30)).strftime('%Y-%m-%d')
 
-    # Query based on the filter type
+    search_sql = ''
+    search_params = []
+    if q:
+        # Search across description, url and review text (review is helpful for reviewed items)
+        search_sql = ' AND (description LIKE ? OR url LIKE ? OR review LIKE ?)'
+        like = f'%{q}%'
+        search_params = [like, like, like]
+
+    def count_and_fetch(where_sql: str, params: list):
+        # Total count for pagination controls
+        cursor.execute(f'SELECT COUNT(*) FROM orders {where_sql}', params)
+        row = cursor.fetchone()
+        total = row[0] if row else 0
+
+        # Page of results
+        cursor.execute(
+            f'''
+            SELECT id, description, price, date_ordered, review_date
+            FROM orders
+            {where_sql}
+            ORDER BY date_ordered DESC
+            LIMIT ? OFFSET ?
+            ''',
+            params + [per_page, offset]
+        )
+        return total, cursor.fetchall()
+
     if filter_type == 'reviewed':
-        cursor.execute('SELECT id, description, price, date_ordered, review_date FROM orders WHERE review_date IS NOT NULL ORDER BY date_ordered DESC')
+        where_sql = 'WHERE review_date IS NOT NULL' + search_sql
+        total_items, orders = count_and_fetch(where_sql, search_params)
+
     elif filter_type == 'awaiting':
-        cursor.execute('SELECT id, description, price, date_ordered, review_date FROM orders WHERE review_date IS NULL ORDER BY date_ordered DESC')
+        where_sql = 'WHERE review_date IS NULL' + search_sql
+        total_items, orders = count_and_fetch(where_sql, search_params)
+
     elif filter_type == 'all':
-        cursor.execute('SELECT id, description, price, date_ordered, review_date FROM orders ORDER BY date_ordered DESC')
+        where_sql = 'WHERE 1=1' + search_sql
+        total_items, orders = count_and_fetch(where_sql, search_params)
+
     elif filter_type == 'legally_mine':
-        cursor.execute('SELECT id, description, price, date_ordered, review_date FROM orders WHERE review_date <= ? ORDER BY date_ordered DESC', (six_months_ago,))
+        # Must include six_months_ago as the first param for the <= ? predicate
+        where_sql = 'WHERE review_date <= ?' + search_sql
+        total_items, orders = count_and_fetch(where_sql, [six_months_ago] + search_params)
+
     else:
-        cursor.execute('SELECT id, description, price, date_ordered, review_date FROM orders WHERE review_date IS NULL ORDER BY date_ordered DESC')
+        where_sql = 'WHERE review_date IS NULL' + search_sql
+        total_items, orders = count_and_fetch(where_sql, search_params)
 
-    # Fetch the filtered orders
-    orders = cursor.fetchall()
-
-    # Get the total number of items for the selected filter
-    if filter_type == 'reviewed':
-        cursor.execute('SELECT COUNT(*) FROM orders WHERE review_date IS NOT NULL')
-    elif filter_type == 'awaiting':
-        cursor.execute('SELECT COUNT(*) FROM orders WHERE review_date IS NULL')
-    elif filter_type == 'all':
-        cursor.execute('SELECT COUNT(*) FROM orders')
-    elif filter_type == 'legally_mine':
-        cursor.execute('SELECT COUNT(*) FROM orders WHERE review_date <= ?', (six_months_ago,))
-    else:
-        cursor.execute('SELECT COUNT(*) FROM orders WHERE review_date IS NULL')
-
-    total_items = cursor.fetchone()[0]
+    total_pages = (total_items + per_page - 1) // per_page if total_items else 1
 
     print(f"Total items: {total_items}, Filter: {filter_type}", flush=True)  # Debugging statement
 
@@ -406,9 +435,18 @@ def orders():
         formatted_orders.append(formatted_order)
 
     # Pass total_items and six_months_ago to the template
-    return render_template('orders.html', orders=formatted_orders, total_items=total_items, six_months_ago=six_months_ago, filter=filter_type)
+    return render_template(
+        'orders.html',
+        orders=formatted_orders,
+        total_items=total_items,
+        six_months_ago=six_months_ago,
+        filter=filter_type,
+        page=page,
+        total_pages=total_pages,
+        q=q
+    )
 
-# View and edit a single order
+
 @app.route('/orders/<int:order_id>', methods=['GET'])
 def view_order(order_id):
     conn = get_db_connection()
@@ -485,26 +523,40 @@ def update_review_date(order_id):
 def update_review(order_id):
     try:
         new_review = request.form['review']
-        review_date = datetime.now().strftime('%Y-%m-%d')
 
         conn = sqlite3.connect(DATABASE)
         cursor = conn.cursor()
 
-        cursor.execute('UPDATE orders SET review = ?, review_date = ?, review_due_date = "Complete" WHERE id = ?', 
-                       (new_review, review_date, order_id))
+        # Fetch existing review_date
+        cursor.execute('SELECT review_date FROM orders WHERE id = ?', (order_id,))
+        row = cursor.fetchone()
+
+        if row and row[0]:
+            review_date = row[0]   # Preserve existing date
+        else:
+            review_date = datetime.now().strftime('%Y-%m-%d')  # First review
+
+        cursor.execute(
+            '''
+            UPDATE orders
+            SET review = ?, review_date = ?, review_due_date = "Complete"
+            WHERE id = ?
+            ''',
+            (new_review, review_date, order_id)
+        )
+
         conn.commit()
         conn.close()
 
-        # Convert the updated review to HTML
         updated_review_html = markdown.markdown(new_review)
 
-        # Return both updated fields
         return jsonify({
-            "success": True, 
+            "success": True,
             "updated_review_html": updated_review_html,
             "review_date": review_date,
             "review_due_date": "Complete"
         })
+
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
 
