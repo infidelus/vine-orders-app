@@ -8,52 +8,55 @@
     <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
 </head>
 <body>
-    <!-- Main Wrapper to Contain the Content and Apply Existing Borders -->
+    <!-- Main Wrapper -->
     <div class="page-wrapper">
-        <!-- Dark Mode Toggle - Moved Inside the Content Wrapper -->
+
+        <!-- Dark Mode Toggle -->
         <div class="dark-mode-toggle">
             <label for="dark-mode-checkbox">Dark Mode</label>
             <input type="checkbox" id="dark-mode-checkbox" onclick="toggleDarkMode()">
         </div>
-        
-            <!-- Banner-styled heading -->
-            <h1 class="banner-heading">All Orders</h1>
+
+        <!-- Banner -->
+        <h1 class="banner-heading">All Orders</h1>
 
         <!-- Search Bar and Filter Buttons -->
         <div class="filters">
             <div class="filters-left">
-                <input type="text" id="search-bar" placeholder="Search orders..." class="search-bar">
-                <button class="btn-filter" onclick="window.location.href='{{ url_for('orders', filter='all') }}'">All Orders</button>
-                <button class="btn-filter" onclick="window.location.href='{{ url_for('orders', filter='reviewed') }}'">Reviewed Orders</button>
-                <button class="btn-filter" onclick="window.location.href='{{ url_for('orders', filter='awaiting') }}'">Orders Awaiting Review</button>
-                <button class="btn-filter" onclick="window.location.href='{{ url_for('orders', filter='legally_mine') }}'">Items Legally Mine</button>
+
+                <!-- SERVER-SIDE SEARCH -->
+                <form method="get" action="{{ url_for('orders') }}" class="search-form">
+                    <input type="hidden" name="filter" value="{{ filter }}">
+                    <input type="hidden" name="page" value="1">
+                    <input
+                        type="text"
+                        name="q"
+                        value="{{ q }}"
+                        placeholder="Search orders..."
+                        class="search-bar"
+                    >
+                </form>
+
+                <button class="btn-filter" onclick="window.location.href='{{ url_for('orders', filter='all') }}'">
+                    All Orders
+                </button>
+                <button class="btn-filter" onclick="window.location.href='{{ url_for('orders', filter='reviewed') }}'">
+                    Reviewed Orders
+                </button>
+                <button class="btn-filter" onclick="window.location.href='{{ url_for('orders', filter='awaiting') }}'">
+                    Orders Awaiting Review
+                </button>
+                <button class="btn-filter" onclick="window.location.href='{{ url_for('orders', filter='legally_mine') }}'">
+                    Items Legally Mine
+                </button>
             </div>
+
             <div class="filters-right">
-                <span id="item-count" class="item-count">Total Items: {{ total_items }}</span>
+                <span class="item-count">Total Items: {{ total_items }}</span>
             </div>
         </div>
 
-        <!-- Search Functionality Script -->
-        <script>
-            document.getElementById('search-bar').addEventListener('input', function() {
-                var keyword = this.value.toLowerCase();
-                var rows = document.querySelectorAll('tbody tr');
-                rows.forEach(function(row) {
-                    var description = row.querySelector('td:first-child').textContent.toLowerCase();
-                    if (description.includes(keyword)) {
-                        row.style.display = 'table-row';
-                    } else {
-                        row.style.display = 'none';
-                    }
-                });
-            });
-
-            function toggleDarkMode() {
-                document.body.classList.toggle('dark-mode');
-            }
-        </script>
-
-        <!-- Table with orders -->
+        <!-- Orders Table -->
         <div class="table-container">
             <table class="orders-table">
                 <thead>
@@ -71,19 +74,122 @@
                             <td class="price-column">{{ order['price'] }}</td>
                             <td>{{ order['date_ordered'] }}</td>
                             <td>
-                                <a href="{{ url_for('view_order', order_id=order['id']) }}" class="small-button">View</a>
+                                <a href="{{ url_for('view_order', order_id=order['id']) }}" class="small-button">
+                                    View
+                                </a>
                             </td>
                         </tr>
                     {% endfor %}
-               </tbody>
+                </tbody>
             </table>
         </div>
-        
-        <!-- Back to Dashboard Link -->
+
+        <!-- PAGINATION -->
+        {% if total_pages > 1 %}
+        <div class="pagination">
+            {% if page > 1 %}
+                <a class="page-link"
+                   href="{{ url_for('orders', filter=filter, page=page-1, q=q) }}">
+                    &laquo; Prev
+                </a>
+            {% endif %}
+
+            {% set start = page - 2 %}
+            {% set end = page + 2 %}
+
+            {% if start < 1 %}
+                {% set start = 1 %}
+            {% endif %}
+
+            {% if end > total_pages %}
+                {% set end = total_pages %}
+            {% endif %}
+
+            {% if start > 1 %}
+                <a class="page-link"
+                   href="{{ url_for('orders', filter=filter, page=1, q=q) }}">
+                    1
+                </a>
+                {% if start > 2 %}
+                    <span class="pagination-ellipsis">…</span>
+                {% endif %}
+            {% endif %}
+
+            {% for p in range(start, end + 1) %}
+                {% if p == page %}
+                    <span class="current-page">{{ p }}</span>
+                {% else %}
+                    <a class="page-link"
+                       href="{{ url_for('orders', filter=filter, page=p, q=q) }}">
+                        {{ p }}
+                    </a>
+                {% endif %}
+            {% endfor %}
+
+            {% if end < total_pages %}
+                {% if end < total_pages - 1 %}
+                    <span class="pagination-ellipsis">…</span>
+                {% endif %}
+                <a class="page-link"
+                   href="{{ url_for('orders', filter=filter, page=total_pages, q=q) }}">
+                    {{ total_pages }}
+                </a>
+            {% endif %}
+
+            {% if page < total_pages %}
+                <a class="page-link"
+                   href="{{ url_for('orders', filter=filter, page=page+1, q=q) }}">
+                    Next &raquo;
+                </a>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Back to Dashboard -->
         <div class="bottom-buttons">
             <a href="{{ url_for('index') }}" class="button-link">Back to Dashboard</a>
         </div>
+
     </div>
+
+    <!-- Scripts -->
+    <script>
+        function toggleDarkMode() {
+            document.body.classList.toggle('dark-mode');
+        }
+    </script>
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+
+    <script>
+        const searchInput = document.querySelector('.search-bar');
+        let searchTimeout = null;
+        let lastSubmittedValue = searchInput ? searchInput.value : '';
+
+        if (searchInput && searchInput.form) {
+            searchInput.addEventListener('input', function () {
+                const currentValue = this.value;
+
+                // Don't resubmit if value hasn't actually changed
+                if (currentValue === lastSubmittedValue) return;
+
+                clearTimeout(searchTimeout);
+
+                searchTimeout = setTimeout(() => {
+                    lastSubmittedValue = currentValue;
+                    this.form.submit();
+                }, 700);
+            });
+
+            // Restore focus after page reload (including empty search)
+            window.addEventListener('load', () => {
+                searchInput.focus();
+                searchInput.setSelectionRange(
+                    searchInput.value.length,
+                    searchInput.value.length
+                );
+            });
+        }
+    </script>
 </body>
 </html>
+
