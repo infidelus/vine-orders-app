@@ -49,6 +49,9 @@
                 <button class="btn-filter" onclick="window.location.href='{{ url_for('orders', filter='legally_mine') }}'">
                     Items Legally Mine
                 </button>
+                <button class="btn-filter" onclick="window.location.href='{{ url_for('orders', filter='sold') }}'">
+                    Sold Items
+                </button>
             </div>
 
             <div class="filters-right">
@@ -58,12 +61,18 @@
 
         <!-- Orders Table -->
         <div class="table-container">
-            <table class="orders-table">
+            <table class="orders-table {% if filter == 'sold' %}sold-view{% endif %}">
                 <thead>
                     <tr>
                         <th>Description</th>
                         <th>Price</th>
-                        <th>Date Ordered</th>
+                        {% if filter == 'sold' %}
+                            <th>Date Sold</th>
+                            <th>Sold For</th>
+                            <th>Platform</th>
+                        {% else %}
+                            <th>Date Ordered</th>
+                        {% endif %}
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -72,7 +81,13 @@
                         <tr class="{% if order['review_date'] and order['review_date'] <= six_months_ago %}legally-mine{% endif %}">
                             <td>{{ order['description'] }}</td>
                             <td class="price-column">{{ order['price'] }}</td>
-                            <td>{{ order['date_ordered'] }}</td>
+                            {% if filter == 'sold' %}
+                                <td>{{ order['date_sold'] }}</td>
+                                <td class="price-column">{{ order['sale_price'] }}</td>
+                                <td>{{ order['sale_platform'] }}</td>
+                            {% else %}
+                                <td>{{ order['date_ordered'] }}</td>
+                            {% endif %}
                             <td>
                                 <a href="{{ url_for('view_order', order_id=order['id']) }}" class="small-button">
                                     View
@@ -142,6 +157,15 @@
                     Next &raquo;
                 </a>
             {% endif %}
+
+            <!-- Jump straight to a page number -->
+            <form method="get" action="{{ url_for('orders') }}" class="page-jump">
+                <input type="hidden" name="filter" value="{{ filter }}">
+                {% if q %}<input type="hidden" name="q" value="{{ q }}">{% endif %}
+                <input type="number" name="page" min="1" max="{{ total_pages }}"
+                       placeholder="Page" required class="page-jump-input">
+                <button type="submit" class="small-button">Go</button>
+            </form>
         </div>
         {% endif %}
 
@@ -153,11 +177,6 @@
     </div>
 
     <!-- Scripts -->
-    <script>
-        function toggleDarkMode() {
-            document.body.classList.toggle('dark-mode');
-        }
-    </script>
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
 
     <script>
@@ -192,4 +211,3 @@
     </script>
 </body>
 </html>
-

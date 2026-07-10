@@ -52,7 +52,6 @@
                 </p>
 
                 <!-- Show the current review date and provide an edit button -->
-                <!-- Show the current review date -->
                 <p>
                     Review Date: <span id="review-date-display">
                         {% if order['review_date'] %}
@@ -69,10 +68,80 @@
                 <!-- Hidden form to update the review date -->
                 <form id="review-date-form" method="POST" action="{{ url_for('update_review_date', order_id=order['id']) }}" style="display:none;">
                     <label for="review_date">Review Date:</label>
-                    <input type="date" id="review_date" name="review_date" value="{{ order['review_date'] }}" required>
+                    <input type="date" id="review_date" name="review_date" value="{{ order['review_date'] or '' }}" required>
                     <button type="submit" class="small-button">Save Review Date</button>
                 </form>
-                
+
+                <!-- Ownership status (legally yours six months after the review date) -->
+                {% if order['review_date'] %}
+                    <p>
+                        Ownership:
+                        {% if is_owned %}
+                            <span class="owned-yes">Legally yours since {{ ownership_date }}</span>
+                        {% else %}
+                            <span class="owned-not-yet">Legally yours from {{ ownership_date }}</span>
+                        {% endif %}
+                    </p>
+                {% endif %}
+
+                <!-- Sale Details Section -->
+                <div class="sale-section">
+                    {% if order['date_sold'] %}
+                        <div id="sale-info" class="sale-info">
+                            <h3>Sale Details</h3>
+                            <p><strong>Date Sold:</strong> {{ order['date_sold'] | datetimeformat }}</p>
+                            <p><strong>Sold For:</strong> £{{ "{:.2f}".format(order['sale_price']) }}
+                                {% if order['sale_fees'] %}
+                                    (fees £{{ "{:.2f}".format(order['sale_fees']) }}, net £{{ "{:.2f}".format(order['sale_price'] - order['sale_fees']) }})
+                                {% endif %}
+                            </p>
+                            <p><strong>Platform:</strong> {{ order['sale_platform'] or 'Not specified' }}</p>
+                            <button type="button" class="small-button" onclick="toggleSaleEdit(true)">Edit Sale Details</button>
+                            <form method="POST" action="{{ url_for('clear_sale', order_id=order['id']) }}" style="display:inline;"
+                                  onsubmit="return confirm('Remove the sale details from this item?');">
+                                <button type="submit" class="cancel-button">Clear Sale</button>
+                            </form>
+                        </div>
+                    {% else %}
+                        <button type="button" id="mark-sold-btn" class="small-button" onclick="toggleSaleEdit(true)">Mark as Sold</button>
+                    {% endif %}
+
+                    <!-- Sale form (used for both marking as sold and editing an existing sale) -->
+                    <div id="sale-form-section" style="display: none;">
+                        <h3>{{ 'Edit Sale Details' if order['date_sold'] else 'Mark as Sold' }}</h3>
+                        <form method="POST" action="{{ url_for('mark_sold', order_id=order['id']) }}">
+                            <div class="sale-form-row">
+                                <label for="date_sold">Date Sold:</label>
+                                <input type="date" id="date_sold" name="date_sold"
+                                       value="{{ order['date_sold'] or today }}" required>
+                            </div>
+                            <div class="sale-form-row">
+                                <label for="sale_price">Sold For (£):</label>
+                                <input type="number" id="sale_price" name="sale_price" step="0.01" min="0"
+                                       value="{{ order['sale_price'] if order['sale_price'] is not none else '' }}" required>
+                            </div>
+                            <div class="sale-form-row">
+                                <label for="sale_platform">Platform:</label>
+                                <input type="text" id="sale_platform" name="sale_platform" list="platform-list"
+                                       placeholder="e.g. eBay, Vinted, Facebook Marketplace"
+                                       value="{{ order['sale_platform'] or '' }}">
+                                <datalist id="platform-list">
+                                    {% for platform in platforms %}
+                                        <option value="{{ platform }}">
+                                    {% endfor %}
+                                </datalist>
+                            </div>
+                            <div class="sale-form-row">
+                                <label for="sale_fees">Fees (£, optional):</label>
+                                <input type="number" id="sale_fees" name="sale_fees" step="0.01" min="0"
+                                       value="{{ order['sale_fees'] if order['sale_fees'] is not none else '' }}">
+                            </div>
+                            <button type="submit" class="small-button">Save Sale</button>
+                            <button type="button" class="cancel-button" onclick="toggleSaleEdit(false)">Cancel</button>
+                        </form>
+                    </div>
+                </div>
+
                 <div class="vine-link-container">
                     <a href="https://www.amazon.co.uk/vine/vine-reviews" target="_blank">Vine Reviews Page</a>
                 </div>
@@ -91,6 +160,24 @@
 
                 // Prevent selecting a review date earlier than the order date
                 document.getElementById('review_date').setAttribute('min', '{{ order["date_ordered"] }}');
+
+                // Show or hide the sale form
+                function toggleSaleEdit(isEditing) {
+                    const saleFormSection = document.getElementById('sale-form-section');
+                    const saleInfo = document.getElementById('sale-info');
+                    const markSoldBtn = document.getElementById('mark-sold-btn');
+
+                    if (isEditing) {
+                        saleFormSection.style.display = 'block';
+                        if (saleInfo) saleInfo.style.display = 'none';
+                        if (markSoldBtn) markSoldBtn.style.display = 'none';
+                        document.getElementById('date_sold').focus();
+                    } else {
+                        saleFormSection.style.display = 'none';
+                        if (saleInfo) saleInfo.style.display = 'block';
+                        if (markSoldBtn) markSoldBtn.style.display = 'inline-block';
+                    }
+                }
             </script>
 
             <!-- Right Column: Review Section -->
@@ -175,7 +262,7 @@
                     if (darkModeSetting === 'enabled') {
                         const toolbarButtons = document.querySelectorAll('.editor-toolbar a');
                         toolbarButtons.forEach(button => {
-                            button.style.color = '#ffffff';  // Set button text color to white
+                            button.style.color = '#ffffff';  // Set button text colour to white
                             button.style.backgroundColor = '#333';  // Set button background to dark grey
                         });
                     }
@@ -257,8 +344,6 @@
                     return response.json();
                 })
                 .then(data => {
-                    console.log("Server response:", data);  // Debug: log the server response
-            
                     if (data.success) {
                         // Update the review display with the new content
                         const reviewDisplay = document.getElementById('review-display');
@@ -277,16 +362,7 @@
                         if (reviewDateDisplay) {
                             const formattedDate = new Date(data.review_date).toLocaleDateString('en-GB');  // Format as dd/mm/yyyy
                             reviewDateDisplay.textContent = formattedDate;  // Update with the formatted date only
-                            console.log("Updated review date:", data.review_date);  // Debug: log the new review date
                             
-                            // Force reflow to fix layout
-                            const reviewDateContainer = document.getElementById('review-date-container');
-                            if (reviewDateContainer) {
-                                reviewDateContainer.style.display = 'none';  // Hide it momentarily
-                                reviewDateContainer.offsetHeight;  // Force a reflow
-                                reviewDateContainer.style.display = '';  // Show it again
-                            }
-
                             // Ensure the "Edit Review Date" button is visible now that we have a review date
                             const editReviewDateBtn = document.getElementById('edit-review-date-btn');
                             if (editReviewDateBtn) {
@@ -295,15 +371,7 @@
                                 // If the button doesn't exist, create it dynamically
                                 const newButtonHTML = `<button id="edit-review-date-btn" class="small-button" onclick="toggleReviewDateEdit()">Edit Review Date</button>`;
                                 reviewDateDisplay.insertAdjacentHTML('afterend', newButtonHTML);  // Insert the button right after the review date
-                                console.log("Created Edit Review Date button.");  // Debug: log the button creation
-            
-                                // Assign the event listener for the newly created "Edit Review Date" button
-                                document.getElementById('edit-review-date-btn').addEventListener('click', function() {
-                                    toggleReviewDateEdit();
-                                });
                             }
-                        } else {
-                            console.error("Review date element not found.");  // Debug: log if element is missing
                         }
             
                         // Hide review due date if the review is complete or update it if necessary
@@ -311,10 +379,8 @@
                         if (reviewDueDateDisplay) {
                             if (data.review_due_date === 'Complete') {
                                 reviewDueDateDisplay.style.display = 'none';  // Hide if the review is complete
-                                console.log("Review due date hidden (Complete).");  // Debug: log hiding the due date
                             } else {
                                 reviewDueDateDisplay.textContent = `Review Due Date: ${data.review_due_date}`;  // Update the due date
-                                console.log("Updated review due date:", data.review_due_date);  // Debug: log the new due date
                             }
                         }
             

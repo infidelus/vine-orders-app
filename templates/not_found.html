@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Order Not Found</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+</head>
+<body>
+    <div class="page-wrapper">
+        <h1 class="banner-heading">Order Not Found</h1>
+        <p style="text-align: center;">Sorry, there is no order with that ID in the database.</p>
+        <div class="bottom-buttons" style="justify-content: center;">
+            <a href="{{ url_for('orders') }}" class="button-link">Back to Orders</a>
+            <a href="{{ url_for('index') }}" class="button-link">Back to Dashboard</a>
+        </div>
+    </div>
+</body>
+</html>

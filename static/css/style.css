@@ -1009,3 +1009,77 @@ body {
 .dark-mode .pagination-ellipsis {
     color: #aaa;
 }
+
+/* --- Sale details section (view order page) --- */
+.sale-section {
+    margin-top: 15px;
+    padding-top: 10px;
+    border-top: 1px solid #ccc;
+}
+
+.sale-info h3,
+#sale-form-section h3 {
+    margin: 5px 0 10px 0;
+}
+
+.sale-form-row {
+    margin-bottom: 8px;
+}
+
+.sale-form-row label {
+    display: inline-block;
+    min-width: 140px;
+}
+
+.sale-form-row input {
+    max-width: 250px;
+}
+
+.owned-yes {
+    color: green;
+    font-weight: bold;
+}
+
+.owned-not-yet {
+    color: #b36b00;
+}
+
+.dark-mode .owned-yes {
+    color: #6fdc6f;
+}
+
+.dark-mode .owned-not-yet {
+    color: #ffb84d;
+}
+
+.dark-mode .sale-section {
+    border-top-color: #555;
+}
+
+/* --- Page jump box in the pagination bar --- */
+.page-jump {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-left: 15px;
+}
+
+.page-jump-input {
+    width: 70px;
+    padding: 4px 6px;
+}
+
+/* Keep the sold view's extra price column right-aligned like the others */
+.orders-table.sold-view td:nth-child(4) {
+    text-align: right;
+}
+
+.orders-table.sold-view td:nth-child(4) {
+    white-space: nowrap;
+}
+
+.orders-table.sold-view td:nth-child(6) {
+    text-align: center;
+    white-space: nowrap;
+    width: 1%;
+}

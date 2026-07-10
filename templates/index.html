@@ -38,7 +38,27 @@
                     <p>£{{ current_year_value }}</p>
                 </div>
             </div>
-        
+
+            <!-- Sales Stats Row -->
+            <div class="stat-row">
+                <div class="stat-box">
+                    <h3>Items Sold</h3>
+                    <p>{{ items_sold }}</p>
+                </div>
+                <div class="stat-box">
+                    <h3>Total Sales</h3>
+                    <p>£{{ total_sales }}</p>
+                </div>
+                <div class="stat-box">
+                    <h3>Net Sales (After Fees)</h3>
+                    <p>£{{ net_sales }}</p>
+                </div>
+                <div class="stat-box">
+                    <h3>Sales This Year</h3>
+                    <p>£{{ sales_current_year }}</p>
+                </div>
+            </div>
+
             <!-- New Current Review Period Section -->
             <div class="stat-row">
                 <div class="stat-box review-period">
@@ -48,7 +68,7 @@
                     <button class="edit-button small-button" onclick="editReviewPeriod()">Edit</button>
                 </div>
             </div>
-        
+
             <!-- Current Review Period Stats Section -->
             <div class="stat-row">
                 <div class="stat-box">

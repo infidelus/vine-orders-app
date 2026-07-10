@@ -73,42 +73,31 @@ document.addEventListener('DOMContentLoaded', function () {
     const darkModeSetting = localStorage.getItem('darkMode');
 
     if (darkModeSetting === 'enabled') {
-        checkbox.checked = true;
+        if (checkbox) checkbox.checked = true;
         body.classList.add('dark-mode');
         pageWrapper?.classList.add('dark-mode');
     }
 
-    checkbox.addEventListener('change', toggleDarkMode);
-
-    // Check if on the orders page before calling updateItemCount
-    if (window.location.pathname.includes('/orders')) {
-        updateItemCount();
+    if (checkbox) {
+        checkbox.addEventListener('change', toggleDarkMode);
     }
 
-    // Update item count based on the current filter
-    function updateItemCount() {
-        fetch(`/get_item_count`)
+    // Import CSV button (only present on the dashboard, so guard against
+    // it being missing on other pages)
+    const importCsvButton = document.getElementById('importCsvButton');
+    if (importCsvButton) {
+        importCsvButton.addEventListener('click', function () {
+            fetch('/import_csv', {
+                method: 'POST'
+            })
             .then(response => response.json())
             .then(data => {
-                const itemCountElement = document.getElementById('item-count');
-                if (itemCountElement) {
-                    itemCountElement.textContent = `Total Items: ${data.item_count}`;
-                }
+                alert(data.message);
             })
-            .catch(error => console.error("Error fetching item count:", error));
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while importing the CSV file.');
+            });
+        });
     }
-});
-
-document.getElementById('importCsvButton').addEventListener('click', function() {
-    fetch('/import_csv', {
-        method: 'GET'
-    })
-    .then(response => response.json())
-    .then(data => {
-        alert(data.message);
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('An error occurred while importing the CSV file.');
-    });
 });
