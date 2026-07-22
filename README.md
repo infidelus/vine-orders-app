@@ -2,7 +2,7 @@
 
 A self-hosted web app to track your Amazon Vine orders, reviews and sales.
 
-This Flask application was originally written almost entirely by ChatGPT. Other than fixing obvious mistakes I noticed it make, my only input was telling it what I wanted, liked and didn't like, a little bit of CSS and HTML and a lot of beta testing and banging my head on the table because, while ChatGPT is actually quite clever, it's also exceptionally stupid sometimes and has the memory retention of a fish! Version 2.0 added sales tracking and a general tidy-up, this time with help from Anthropic's Claude.
+This Flask application was originally written almost entirely by ChatGPT. Other than fixing obvious mistakes I noticed it make, my only input was telling it what I wanted, liked and didn't like, a little bit of CSS and HTML and a lot of beta testing and banging my head on the table because, while ChatGPT is actually quite clever, it's also exceptionally stupid sometimes and has the memory retention of a fish! Version 2.0 added sales tracking and a general tidy-up, and version 2.1 added a statistics page with charts and CSV exports, this time with help from Anthropic's Claude.
 
 ## Features
 
@@ -12,6 +12,8 @@ This Flask application was originally written almost entirely by ChatGPT. Other 
 - **Review management** - write reviews in Markdown with a built-in editor, track review dates and due dates
 - **Ownership tracking** - each item shows when it becomes legally yours (six months after the review date), with an "Items Legally Mine" filter
 - **Sales tracking** - mark items as sold with the date, sale price, platform and optional fees. The platform is free text with autocomplete from your previous entries, so it works with eBay, Vinted, Facebook Marketplace or anywhere else you sell. The dashboard shows items sold, total sales, net sales after fees and sales this year, and the orders page has a Sold Items filter
+- **Statistics page** with charts covering orders per month, orders and value per year, sales per month and sales by platform, plus a per-platform breakdown of gross, fees and net
+- **CSV exports** of all orders, or just your sold items with net amounts worked out
 - **Search and filters** with pagination and a page-jump box for large collections
 - **CSV import** for your Amazon data export, plus a separate script to bulk-import prices
 - **Dark mode**, because of course
@@ -21,6 +23,7 @@ A few images of the app:
 ![dashboard](screenshots/dashboard.png)
 ![orders](screenshots/orders.png)
 ![order details](screenshots/order-details.png)
+![statistics](screenshots/statistics.png)
 
 ## Installation
 
@@ -59,6 +62,12 @@ There is also a separate Python script to import prices (import_prices.py). This
 Open any order and press 'Mark as Sold'. Enter the date sold (defaults to today), what it sold for, the platform and any fees, and save. The order page then shows the sale details including the net amount after fees, with buttons to edit or clear the sale if you make a mistake. Sold items appear under the 'Sold Items' filter on the orders page, and the dashboard totals update automatically.
 
 There's no hard enforcement of the six-month ownership rule - the app shows you the ownership status and politely assumes you know what you're doing.
+
+## Statistics and Exports
+
+If you like your data, there's a 'Statistics' button on the dashboard. It opens a separate page with charts for orders per month, orders and RRP value per year, sales per month and a breakdown of sales by platform, along with a table showing gross, fees and net for each marketplace you've sold on. The charting is done with [Chart.js](https://www.chartjs.org/), which is bundled with the app rather than loaded from a CDN so everything continues to work offline.
+
+At the bottom of that page are two export buttons. 'Export All Orders' gives you a CSV of everything in the database, useful for backups or if you fancy doing your own analysis in a spreadsheet. 'Export Sold Items' gives you just the items you've sold, with the date, platform, sale price, fees and calculated net amount, which is a sensible starting point if you ever need records of your selling income.
 
 ## Notes on Price Scraping
 

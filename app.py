@@ -1,6 +1,7 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify
+from flask import Flask, render_template, request, redirect, url_for, jsonify, Response
 import random
 import re
+import io
 import logging
 import requests
 import sqlite3
@@ -797,6 +798,172 @@ def save_review_period():
     conn.close()
 
     return '', 204  # Return success without reloading the page
+
+
+# Statistics page with charts and export links
+@app.route('/stats')
+def stats():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    def month_series(rows, months=24):
+        """Fill in any missing months with zero so the charts have no gaps."""
+        data = {row[0]: row[1] for row in rows}
+        labels = []
+        values = []
+        # Walk backwards from the current month
+        current = datetime.now().replace(day=1)
+        month_list = []
+        for _ in range(months):
+            month_list.append(current.strftime('%Y-%m'))
+            # Step back one month
+            current = (current - timedelta(days=1)).replace(day=1)
+        for month in reversed(month_list):
+            labels.append(datetime.strptime(month, '%Y-%m').strftime('%b %y'))
+            values.append(data.get(month, 0))
+        return labels, values
+
+    # Orders per month (last 24 months)
+    cursor.execute('''
+        SELECT strftime('%Y-%m', date_ordered) AS month, COUNT(*)
+        FROM orders
+        WHERE date_ordered >= date('now', 'start of month', '-23 months')
+        GROUP BY month
+    ''')
+    orders_month_labels, orders_month_values = month_series(cursor.fetchall())
+
+    # Order value per year
+    cursor.execute('''
+        SELECT strftime('%Y', date_ordered) AS year,
+               COUNT(*), ROUND(SUM(COALESCE(price, 0)), 2)
+        FROM orders
+        GROUP BY year
+        ORDER BY year
+    ''')
+    year_rows = cursor.fetchall()
+    year_labels = [row[0] for row in year_rows]
+    year_counts = [row[1] for row in year_rows]
+    year_values = [row[2] for row in year_rows]
+
+    # Sales per month (last 24 months, gross)
+    cursor.execute('''
+        SELECT strftime('%Y-%m', date_sold) AS month,
+               ROUND(SUM(sale_price), 2)
+        FROM orders
+        WHERE date_sold IS NOT NULL
+        AND date_sold >= date('now', 'start of month', '-23 months')
+        GROUP BY month
+    ''')
+    sales_month_labels, sales_month_values = month_series(cursor.fetchall())
+
+    # Sales by platform (for the doughnut chart and the breakdown table)
+    cursor.execute('''
+        SELECT COALESCE(NULLIF(trim(sale_platform), ''), 'Not specified') AS platform,
+               COUNT(*),
+               ROUND(SUM(sale_price), 2),
+               ROUND(SUM(COALESCE(sale_fees, 0)), 2)
+        FROM orders
+        WHERE date_sold IS NOT NULL
+        GROUP BY platform
+        ORDER BY SUM(sale_price) DESC
+    ''')
+    platform_rows = [
+        {
+            'platform': row[0],
+            'items': row[1],
+            'gross': row[2],
+            'fees': row[3],
+            'net': round(row[2] - row[3], 2),
+        }
+        for row in cursor.fetchall()
+    ]
+
+    # Headline totals for the top of the page
+    cursor.execute('SELECT COUNT(*), ROUND(SUM(COALESCE(price, 0)), 2) FROM orders')
+    total_orders, total_value = cursor.fetchone()
+    cursor.execute('''
+        SELECT COUNT(*), ROUND(COALESCE(SUM(sale_price), 0), 2),
+               ROUND(COALESCE(SUM(COALESCE(sale_fees, 0)), 0), 2)
+        FROM orders WHERE date_sold IS NOT NULL
+    ''')
+    items_sold, sales_gross, sales_fees = cursor.fetchone()
+
+    conn.close()
+
+    return render_template('stats.html',
+                           total_orders=total_orders,
+                           total_value=f"{(total_value or 0):.2f}",
+                           items_sold=items_sold,
+                           sales_gross=f"{sales_gross:.2f}",
+                           sales_net=f"{(sales_gross - sales_fees):.2f}",
+                           orders_month_labels=orders_month_labels,
+                           orders_month_values=orders_month_values,
+                           year_labels=year_labels,
+                           year_counts=year_counts,
+                           year_values=year_values,
+                           sales_month_labels=sales_month_labels,
+                           sales_month_values=sales_month_values,
+                           platform_rows=platform_rows)
+
+
+def csv_response(header, rows, filename):
+    """Build a CSV download response from a header row and data rows."""
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(header)
+    writer.writerows(rows)
+    return Response(
+        output.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment; filename={filename}'}
+    )
+
+
+# Export every order as CSV
+@app.route('/export/orders.csv')
+def export_orders_csv():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT description, url, price, date_ordered, review_date,
+               date_sold, sale_platform, sale_price, sale_fees
+        FROM orders
+        ORDER BY date_ordered
+    ''')
+    rows = cursor.fetchall()
+    conn.close()
+
+    return csv_response(
+        ['description', 'url', 'price', 'date_ordered', 'review_date',
+         'date_sold', 'sale_platform', 'sale_price', 'sale_fees'],
+        rows,
+        'vine_orders.csv'
+    )
+
+
+# Export sold items as CSV (with net amounts, handy for tax records)
+@app.route('/export/sales.csv')
+def export_sales_csv():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT description, date_ordered, price, date_sold,
+               COALESCE(sale_platform, '') AS platform, sale_price,
+               COALESCE(sale_fees, 0) AS fees,
+               ROUND(sale_price - COALESCE(sale_fees, 0), 2) AS net
+        FROM orders
+        WHERE date_sold IS NOT NULL
+        ORDER BY date_sold
+    ''')
+    rows = cursor.fetchall()
+    conn.close()
+
+    return csv_response(
+        ['description', 'date_ordered', 'rrp', 'date_sold',
+         'platform', 'sale_price', 'fees', 'net'],
+        rows,
+        'vine_sales.csv'
+    )
 
 
 if __name__ == '__main__':
