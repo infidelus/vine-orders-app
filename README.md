@@ -45,6 +45,24 @@ If you are running the app on your local machine then it will be available in yo
 
 Change the port number as required, save the file and then restart the app and adjust the browser URL port.
 
+## Running in Docker with Docker Compose
+
+The app comes with a `docker-compose.yml` file, which tells Docker both how to build the app and how to run it (the port, the folders it uses, the time zone and restarting automatically). With the app's files in a folder on your server, open a terminal in that folder and run:
+
+```
+docker compose up -d --build
+```
+
+That's it - the app is then available at `http://<server address>:5000`. To update to a new version, copy the new files into the same folder and run the same command again.
+
+A few things worth knowing:
+
+- **Your data stays in the app's folder.** The folder is used directly by the container, so the database (and the `backups` folder, if you use it) lives on your server and survives rebuilding the container.
+- **Port and time zone** can be changed in `docker-compose.yml` - the comments in the file explain how. The time zone is set to `Europe/London`.
+- **Backing up to another folder:** the file has a commented-out line for a backup folder outside the app's folder (e.g. `/mnt/user/Backup:/backups`). Change the left-hand side to your folder, remove the `#`, run the command again, then enter `/backups` as the backup folder in Settings.
+- **Unraid:** the `docker compose` command comes from the *Docker Compose Manager* plugin in Community Applications. If you already run the app from an Unraid container template, stop and remove that container first (your files in appdata are not touched), as both would want port 5000.
+- Other handy commands, run from the same folder: `docker compose logs -f` (watch the log), `docker compose restart` and `docker compose down` (stop and remove the container; your data is kept).
+
 ## Backups
 
 The database (vine_orders.db) is created in the app's own folder the first time the app starts. If you run the app in Docker, make sure that folder is mapped to your server's storage (on Unraid, the appdata folder), otherwise rebuilding the image could lose your orders.

@@ -1,0 +1,45 @@
+# Docker Compose file for the Vine Orders app.
+#
+# This tells Docker both how to BUILD the app (using the Dockerfile in this
+# folder) and how to RUN it (port, folders, time zone and restart policy).
+#
+# To build and start it, open a terminal in this folder and run:
+#     docker compose up -d --build
+# Run the same command again after updating the app's files.
+#
+# Other useful commands (also run from this folder):
+#     docker compose logs -f     Show the app's log (Ctrl+C to stop watching)
+#     docker compose restart     Restart the app
+#     docker compose down        Stop and remove the container (your data is kept)
+
+services:
+  vine-orders:
+    build: .
+    image: vine-orders-app
+    container_name: vine-orders
+    restart: unless-stopped
+
+    # The address the app is reached on: http://<server address>:5000
+    # To use a different port, change the FIRST number only (e.g. "5050:5000").
+    ports:
+      - "5000:5000"
+
+    environment:
+      # Your time zone, so 'today', review due dates and backup dates are
+      # worked out in local time rather than UTC
+      - TZ=Europe/London
+      # Show the app's messages in the log straight away
+      - PYTHONUNBUFFERED=1
+
+    volumes:
+      # This folder (the app and its database, vine_orders.db) is used directly
+      # by the container, so your orders live here on the server and are never
+      # lost when the container is rebuilt.  It also means an update is just a
+      # matter of copying in the new files and running the command above.
+      - .:/app
+
+      # Optional: a folder for backups outside the app's folder.  Change the
+      # left-hand side to the folder on your server, remove the # at the start
+      # of the line, then enter /backups as the backup folder in the app's
+      # Settings page.
+      # - /mnt/user/Backup:/backups
