@@ -437,6 +437,32 @@ def review_due_cutoffs():
     return overdue_before.strftime('%Y-%m-%d'), due_soon_before.strftime('%Y-%m-%d')
 
 
+def review_reminder_counts(cursor):
+    """Return (overdue, due_soon): how many unreviewed items fall into each."""
+    overdue_before, due_soon_before = review_due_cutoffs()
+    cursor.execute('SELECT COUNT(*) FROM orders WHERE review_date IS NULL AND date_ordered < ?',
+                   (overdue_before,))
+    overdue = cursor.fetchone()[0]
+    cursor.execute('''
+        SELECT COUNT(*) FROM orders
+        WHERE review_date IS NULL AND date_ordered >= ? AND date_ordered <= ?
+    ''', (overdue_before, due_soon_before))
+    due_soon = cursor.fetchone()[0]
+    return overdue, due_soon
+
+
+# The tabs at the top of the orders page, in order: (filter name, label)
+ORDER_FILTERS = [
+    ('all', 'All Orders'),
+    ('awaiting', 'Awaiting Review'),
+    ('overdue', 'Overdue'),
+    ('due_soon', 'Due Soon'),
+    ('reviewed', 'Reviewed'),
+    ('legally_mine', 'Legally Mine'),
+    ('sold', 'Sold'),
+]
+
+
 # Custom filter for formatting datetime in dd/mm/yyyy format
 @app.template_filter('datetimeformat')
 def datetimeformat(value, days=0, format='%d/%m/%Y'):
@@ -747,17 +773,7 @@ def index():
     sales_current_year = cursor.fetchone()[0] or 0
 
     # --- Review reminders ---
-    overdue_before, due_soon_before = review_due_cutoffs()
-    cursor.execute('''
-        SELECT COUNT(*) FROM orders
-        WHERE review_date IS NULL AND date_ordered < ?
-    ''', (overdue_before,))
-    reviews_overdue = cursor.fetchone()[0]
-    cursor.execute('''
-        SELECT COUNT(*) FROM orders
-        WHERE review_date IS NULL AND date_ordered >= ? AND date_ordered <= ?
-    ''', (overdue_before, due_soon_before))
-    reviews_due_soon = cursor.fetchone()[0]
+    reviews_overdue, reviews_due_soon = review_reminder_counts(cursor)
 
     # Fetch the statistics for the current review period
     review_period = get_current_review_period()
@@ -887,8 +903,10 @@ def orders():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # Get the filter type, default to 'awaiting' if no filter is provided
+    # Get the filter type, default to 'awaiting' if none (or an unknown one) is given
     filter_type = request.args.get('filter', 'awaiting')
+    if filter_type not in dict(ORDER_FILTERS):
+        filter_type = 'awaiting'
 
     # Pagination (applies to ALL filters)
     try:
@@ -984,6 +1002,15 @@ def orders():
 
     total_pages = (total_items + per_page - 1) // per_page if total_items else 1
 
+    # Tabs for the top of the page, with counts on the review reminder tabs
+    overdue_count, due_soon_count = review_reminder_counts(cursor)
+    badges = {'overdue': (overdue_count, 'overdue'), 'due_soon': (due_soon_count, 'due-soon')}
+    filter_tabs = [
+        {'key': key, 'label': label,
+         'badge': badges.get(key, (0, ''))[0], 'badge_kind': badges.get(key, (0, ''))[1]}
+        for key, label in ORDER_FILTERS
+    ]
+
     conn.close()
 
     # Format the dates to dd/mm/yyyy and prices to £x.xx before sending to the template
@@ -1023,6 +1050,7 @@ def orders():
         total_items=total_items,
         six_months_ago=six_months_ago,
         filter=filter_type,
+        filter_tabs=filter_tabs,
         page=page,
         total_pages=total_pages,
         q=q
