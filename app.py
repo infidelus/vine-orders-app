@@ -377,15 +377,21 @@ for(var i=0;i<sels.length&&!price;i++){var e=q(sels[i]);if(e&&e.textContent.trim
 var a=q('#ASIN'),m=location.href.match(/\\/(?:dp|gp\\/product)\\/([A-Z0-9]{10})/i);
 var asin=a?a.value:(m?m[1]:'');
 var url=asin?location.origin+'/dp/'+asin:location.href;
-var im=q('#landingImage')||q('#imgBlkFront')||q('#ebooksImgBlkFront');
-var image=im?(im.getAttribute('data-old-hires')||im.src||''):'';
-window.open('{app_url}?url='+encodeURIComponent(url)+'&description='+encodeURIComponent(title)+'&price='+encodeURIComponent(price)+'&image='+encodeURIComponent(image),'_blank');
+var image='',ims=['#landingImage','#imgBlkFront','#ebooksImgBlkFront','#imgTagWrapperId img','#main-image-container img','#main-image'];
+for(var j=0;j<ims.length&&!image;j++){var im=q(ims[j]);if(im){var s=im.getAttribute('data-old-hires')||im.getAttribute('src')||'';if(s.indexOf('http')===0){image=s;}}}
+if(!image){var og=q('meta[property="og:image"]');if(og){image=og.content||'';}}
+window.open('{app_url}?v={version}&url='+encodeURIComponent(url)+'&description='+encodeURIComponent(title)+'&price='+encodeURIComponent(price)+'&image='+encodeURIComponent(image),'_blank');
 })();"""
+
+
+# Bumped whenever the browser button's code changes, so the app can tell
+# when someone is still using an old copy in their bookmarks bar
+BOOKMARKLET_VERSION = '2'
 
 
 def build_bookmarklet(app_url):
     """Return the javascript: link for the browser button, pointing at this app."""
-    js = BOOKMARKLET_JS.replace('{app_url}', app_url)
+    js = BOOKMARKLET_JS.replace('{app_url}', app_url).replace('{version}', BOOKMARKLET_VERSION)
     js = ''.join(line.strip() for line in js.splitlines())
     return 'javascript:' + quote(js, safe="(){}[]'=+:;,.!?/*&|<>-_~")
 
@@ -810,6 +816,8 @@ def index():
         'description': ' '.join(request.args.get('description', '').split()),
         'price': f'{prefill_price:.2f}' if prefill_price else '',
         'image_url': thumbnail_url(request.args.get('image', '')) or '',
+        # True if the details came from an old copy of the browser button
+        'old_button': bool(request.args.get('url')) and request.args.get('v') != BOOKMARKLET_VERSION,
     }
 
     # Return the values to the template

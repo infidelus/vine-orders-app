@@ -103,7 +103,7 @@
         <!-- Add a New Order Section -->
         <div class="new-order-container">
             <h2>Add a New Order</h2>
-            <form method="POST" action="{{ url_for('add_order') }}">
+            <form method="POST" action="{{ url_for('add_order') }}" id="add-order-form">
                 <div class="form-row">
                     <label for="url" class="text-label">Product URL:</label>
                     <input type="text" id="url" name="url" class="url-input" required
@@ -202,9 +202,14 @@
             if (imageUrl) document.getElementById("picture-preview").src = imageUrl;
         }
 
+        // Orders already in the database for the product on the form (from the
+        // last look-up), so Add Order can check before making a duplicate
+        let knownExistingOrders = [];
+
         // Warn if this product is already in the database.  If we have a
         // picture, offer to add it to the existing order(s).
         function existingOrdersMessage(existing) {
+            knownExistingOrders = existing || [];
             if (!existing || existing.length === 0) return "";
             const imageUrl = document.getElementById("image_url").value;
             const parts = existing.map(o => {
@@ -257,6 +262,7 @@
             findButton.textContent = "Finding…";
             showFindStatus("Looking up the product on Amazon…", "info");
             setPicture("");  // Clear any picture from a previous look-up
+            knownExistingOrders = [];
 
             try {
                 const response = await fetch("/fetch-product-info", {
@@ -297,6 +303,16 @@
         document.addEventListener("DOMContentLoaded", function () {
             const urlBox = document.getElementById("url");
 
+            // Ask before adding a second order for something already in the database
+            document.getElementById("add-order-form").addEventListener("submit", function (event) {
+                if (knownExistingOrders.length > 0) {
+                    const dates = knownExistingOrders.map(o => o.date_ordered).join(", ");
+                    if (!confirm(`You already have this item (ordered ${dates}).\n\nAdd another order for it anyway?`)) {
+                        event.preventDefault();
+                    }
+                }
+            });
+
             // Look the product up automatically as soon as a link is pasted
             urlBox.addEventListener("paste", function () {
                 // Wait a moment so the pasted text is in the box
@@ -317,13 +333,24 @@
             fetch("/check-existing?url=" + encodeURIComponent(urlBox.value))
                 .then(response => response.json())
                 .then(data => {
-                    const messages = ["Details filled in from the Amazon page - check them and press Add Order."];
+                    const messages = [];
                     const duplicate = existingOrdersMessage(data.existing);
-                    if (duplicate) messages.unshift(duplicate);
+                    if (duplicate) messages.push(duplicate);
+                    {% if prefill.old_button %}
+                    messages.push("<strong>Your browser button is out of date</strong>, so no picture was sent. " +
+                                  "Open 'Browser button' below and drag the orange button to your bookmarks bar again " +
+                                  "(replacing the old one), then click it on the Amazon page again.");
+                    {% elif not prefill.image_url %}
+                    messages.push("No product picture was found on the Amazon page.");
+                    {% endif %}
+                    if (!duplicate) {
+                        messages.push("Details filled in from the Amazon page - check them and press Add Order.");
+                    }
                     {% if not prefill.price %}
                     messages.push("No price was shown on the Amazon page, so you may need to enter it yourself.");
                     {% endif %}
-                    showFindStatus(messages.join("<br>"), duplicate ? "warning" : "info");
+                    const warn = duplicate || {{ 'true' if prefill.old_button or not prefill.image_url else 'false' }};
+                    showFindStatus(messages.join("<br>"), warn ? "warning" : "info");
                 })
                 .catch(error => console.error("Error checking for duplicates:", error));
             {% endif %}
