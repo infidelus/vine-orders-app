@@ -1,0 +1,84 @@
+name: Bug report
+description: Something in the app isn't working as it should.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a problem. The more detail you can give, the quicker it can be fixed.
+
+        **Please don't include personal information** (such as your name, address or email) in screenshots or logs.
+
+        If the problem is with the **Find button or the browser button** filling in the wrong details, please use the *Product look-up problem* form instead.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the problem, and what you expected to happen instead.
+      placeholder: "When I press 'Save and Back Up Now' I get an error saying..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: How can the problem be made to happen again?
+      placeholder: |
+        1. Go to the Settings page
+        2. Tick 'Daily backups'
+        3. Press 'Save and Back Up Now'
+        4. See the error
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      description: Which version are you running? It's in the release name you downloaded (e.g. v2.2.0).
+      placeholder: v2.2.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: running
+    attributes:
+      label: How are you running the app?
+      options:
+        - Docker Compose (docker-compose.yml)
+        - Unraid container template
+        - Other Docker setup
+        - Directly with Python (python app.py)
+        - Something else (please say below)
+    validations:
+      required: true
+
+  - type: input
+    id: browser
+    attributes:
+      label: Browser
+      description: Which browser (and device) were you using?
+      placeholder: Firefox on Linux Mint
+    validations:
+      required: false
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: If it helps, drag and drop screenshots here.
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log output
+      description: |
+        Any error messages from the app's log. With Docker Compose, run `docker compose logs --tail 50` in the app's folder; on Unraid, click the container's icon and choose *Logs*. This is formatted as code automatically, so no need for backticks.
+      render: shell
+    validations:
+      required: false

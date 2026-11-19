@@ -1,0 +1,78 @@
+name: Product look-up problem
+description: The Find button or the 'Add to Vine Orders' browser button got the description, price or picture wrong (or found nothing).
+title: "[Look-up]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Amazon changes its pages from time to time, so the look-up needs occasional updates. The details below make it possible to see what's gone wrong.
+
+        Note that Amazon sometimes blocks automatic look-ups with its "are you a robot?" check. If the Find button shows a message saying so, that's expected - the browser button is the reliable alternative.
+
+  - type: input
+    id: product-url
+    attributes:
+      label: Product link
+      description: The Amazon product link (the short `amazon.co.uk/dp/...` form is fine).
+      placeholder: https://www.amazon.co.uk/dp/B0XXXXXXXX
+    validations:
+      required: true
+
+  - type: dropdown
+    id: which-button
+    attributes:
+      label: Which did you use?
+      options:
+        - The Find button (pasting the link into the app)
+        - The 'Add to Vine Orders' browser button
+        - Fetch from Amazon (Add Picture on the order page)
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: what-went-wrong
+    attributes:
+      label: What went wrong?
+      description: Tick all that apply.
+      options:
+        - label: The description was wrong or missing
+        - label: The price was wrong or missing
+        - label: The picture was wrong or missing
+        - label: Nothing was filled in at all
+
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+      description: |
+        What was filled in, and what should it have been? Please include any message the app showed (for example "No product picture was found on the Amazon page").
+      placeholder: |
+        Price was filled in as £4.20 but the item costs £8.40 - it seems to have picked up the per-unit price.
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      placeholder: v2.2.0
+    validations:
+      required: true
+
+  - type: input
+    id: browser
+    attributes:
+      label: Browser
+      description: Mainly useful for browser button problems.
+      placeholder: Firefox
+    validations:
+      required: false
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: A screenshot of the Amazon page and of what the app filled in can be very helpful. Please crop out your name and delivery address.
+    validations:
+      required: false

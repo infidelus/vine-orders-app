@@ -1,0 +1,7 @@
+# Settings for the 'New issue' page
+# Everyone gets one of the forms, so reports include the details needed
+blank_issues_enabled: false
+contact_links:
+  - name: Read the README
+    url: https://github.com/infidelus/vine-orders-app#readme
+    about: Installation, Docker, backups, the browser button and other features are explained here - worth a quick look first.

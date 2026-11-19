@@ -1,0 +1,34 @@
+name: Feature request
+description: Suggest a new feature or an improvement to an existing one.
+title: "[Idea]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ideas are always welcome. Please check the existing issues first in case someone has already suggested it - if so, add a 👍 to that one instead.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What would you like to be able to do?
+      description: Describe what you're trying to achieve, or what's awkward at the moment.
+      placeholder: "I'd like to see which items I still need to photograph for my reviews..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: How do you imagine it working?
+      description: Any ideas about how it could look or work in the app. Sketches or screenshots are welcome.
+    validations:
+      required: false
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Anything you do at the moment instead?
+      description: For example a spreadsheet, or a workaround in the app.
+    validations:
+      required: false

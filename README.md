@@ -2,7 +2,7 @@
 
 A self-hosted web app to track your Amazon Vine orders, reviews and sales.
 
-This Flask application was originally written almost entirely by ChatGPT. Other than fixing obvious mistakes I noticed it make, my only input was telling it what I wanted, liked and didn't like, a little bit of CSS and HTML and a lot of beta testing and banging my head on the table because, while ChatGPT is actually quite clever, it's also exceptionally stupid sometimes and has the memory retention of a fish! Version 2.0 added sales tracking and a general tidy-up, and version 2.1 added a statistics page with charts and CSV exports, this time with help from Anthropic's Claude.
+This Flask application was originally written almost entirely by ChatGPT. Other than fixing obvious mistakes I noticed it make, my only input was telling it what I wanted, liked and didn't like, a little bit of CSS and HTML and a lot of beta testing and banging my head on the table because, while ChatGPT is actually quite clever, it's also exceptionally stupid sometimes and has the memory retention of a fish! Version 2.0 added sales tracking and a general tidy-up, version 2.1 added a statistics page with charts and CSV exports, this time with help from Anthropic's Claude, and version 2.2 brought a much more reliable way of adding orders (including a browser button), product pictures, review reminders, optional backups and a Docker Compose file.
 
 ## Features
 
@@ -75,9 +75,11 @@ To restore a backup, stop the app, replace vine_orders.db with the backup file (
 
 ## Updating from an earlier version
 
-Your existing database is upgraded automatically - the first time the new version starts it adds the sales tracking columns and tidies a few data quirks, with no manual steps needed. It's still sensible to take a copy of vine_orders.db first, as you should before any update.
+Your existing database is upgraded automatically - the first time the new version starts it adds any new columns (such as the sales tracking columns in v2.0 and the picture column in v2.2) and tidies a few data quirks, with no manual steps needed. It's still sensible to take a copy of vine_orders.db first, as you should before any update.
 
-If you run the app in Docker, note that the dependencies changed in v2.0 (pandas was removed and Flask was updated to 3.x), so you need to **rebuild the image** rather than just restarting the container.
+If you run the app in Docker, **rebuild the image** when updating to v2.0 (pandas was removed and Flask was updated to 3.x) or v2.2 (the Dockerfile now adds time zone data) rather than just restarting the container. With Docker Compose, `docker compose up -d --build` does this for you.
+
+If you set up the browser button before v2.2, drag it to your bookmarks bar again after updating - the app will tell you if you're using an old copy.
 
 ## Import Vine Orders
 
@@ -124,6 +126,10 @@ Paste an Amazon link into the Product URL box and the app looks the product up s
 Amazon doesn't like automated visitors, so sometimes it answers with its "are you a robot?" page instead of the product. The app now recognises this and tells you, rather than quietly returning nothing. Vine items also often have no price on Amazon until they go on general sale, so a missing price isn't always the app's fault.
 
 For the most reliable results, use the **browser button**. Open "Browser button" under the Add a New Order form and drag the orange "Add to Vine Orders" button to your bookmarks bar. Then, on any Amazon product page, click it. The app opens in a new tab with the description and price already filled in from the page you were looking at, so Amazon's bot checks never come into it.
+
+## Reporting Problems and Suggesting Ideas
+
+Found a bug, or have an idea for the app? Please [open an issue](https://github.com/infidelus/vine-orders-app/issues/new/choose) and pick the form that fits - there's one for general bugs, one for the Find button or browser button getting product details wrong, and one for feature ideas.
 
 ## Thanks
 
