@@ -1482,6 +1482,37 @@ def export_sales_csv():
     )
 
 
+def folder_storage_warning(folder):
+    """
+    When running in Docker, check whether a folder is inside a folder mapped
+    from the server (a Docker 'Path').  If it isn't, anything saved there only
+    exists inside the container and is lost when the container is rebuilt.
+    Returns a warning message, or None if all is well (or not in Docker).
+    """
+    if not os.path.exists('/.dockerenv'):
+        return None
+    try:
+        with open('/proc/self/mountinfo') as f:
+            # The 5th item on each line is where something is mounted.  Spaces
+            # in folder names are written as \040, so turn them back.
+            mount_points = [line.split()[4].replace('\\040', ' ') for line in f if line.strip()]
+    except OSError:
+        return None
+
+    folder = os.path.abspath(folder)
+    # Find the most specific mounted folder that contains this folder
+    best = '/'
+    for mount_point in mount_points:
+        if (folder == mount_point or folder.startswith(mount_point.rstrip('/') + '/')) \
+                and len(mount_point) > len(best):
+            best = mount_point
+    if best == '/':
+        return (f"Warning: {folder} isn't in a folder mapped from your server, so backups saved there "
+                f"would be lost when the container is rebuilt. Check the Docker Path's container path "
+                f"matches the start of the backup folder.")
+    return None
+
+
 # Settings page (currently the backup options)
 @app.route('/settings', methods=['GET', 'POST'])
 def settings():
@@ -1489,6 +1520,9 @@ def settings():
     error = None
 
     if request.method == 'POST':
+        # Both 'Save Settings' and 'Back Up Now' save what's in the form first,
+        # so a backup always goes to the folder you can see on the page
+        backup_now = request.form.get('action') == 'backup_now'
         enabled = request.form.get('backup_enabled') == 'on'
         folder = request.form.get('backup_dir', '').strip() or DEFAULT_BACKUP_DIR
         keep_text = request.form.get('backup_keep', '').strip()
@@ -1500,8 +1534,8 @@ def settings():
         except ValueError:
             error = "The number of backups to keep must be a whole number of at least 1."
 
-        # Only check the folder if backups are being switched on
-        if not error and enabled:
+        # Check the folder can be used if a backup is going to be made
+        if not error and (enabled or backup_now):
             error = check_backup_folder(os.path.abspath(folder))
 
         if not error:
@@ -1509,11 +1543,14 @@ def settings():
             set_setting('backup_dir', folder)
             set_setting('backup_keep', keep)
             message = "Settings saved."
-            if enabled:
-                # Make today's backup straight away, so you can see it worked
+            if enabled or backup_now:
                 try:
-                    backup_database()
-                    message = "Settings saved, and today's backup is in place."
+                    name = backup_database(force=backup_now)
+                    full_path = os.path.join(os.path.abspath(folder), name)
+                    if backup_now:
+                        message = f"Settings saved, and a backup was made: {full_path}"
+                    else:
+                        message = f"Settings saved, and today's backup is in place: {full_path}"
                 except Exception as e:
                     error = f"Settings saved, but the backup failed: {e}"
 
@@ -1528,24 +1565,14 @@ def settings():
         })
 
     return render_template('settings.html',
-                           message=message or request.args.get('message'),
+                           message=message,
                            error=error,
+                           warning=folder_storage_warning(folder),
                            backup_enabled=enabled,
                            backup_dir=get_setting('backup_dir', DEFAULT_BACKUP_DIR),
                            backup_dir_full=folder,
                            backup_keep=keep,
                            backups=backups)
-
-
-# Make a backup immediately (from the Settings page)
-@app.route('/settings/backup_now', methods=['POST'])
-def backup_now():
-    _, folder, _ = backup_settings()
-    error = check_backup_folder(folder)
-    if error:
-        return redirect(url_for('settings', message=error))
-    name = backup_database(force=True)
-    return redirect(url_for('settings', message=f"Backup saved as {name}."))
 
 
 # Download a copy of the whole database (a manual backup)

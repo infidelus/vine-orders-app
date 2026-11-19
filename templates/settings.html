@@ -24,6 +24,9 @@
         {% elif message %}
             <div class="find-status find-status-info">{{ message }}</div>
         {% endif %}
+        {% if warning %}
+            <div class="find-status find-status-warning">{{ warning }}</div>
+        {% endif %}
 
         <!-- Backup options -->
         <div class="settings-section">
@@ -48,7 +51,14 @@
                     <label for="backup_keep">Backups to keep:</label>
                     <input type="number" id="backup_keep" name="backup_keep" value="{{ backup_keep }}" min="1" step="1">
                 </div>
-                <button type="submit" class="small-button">Save Settings</button>
+                <p class="settings-note">
+                    The full folder being used is shown under Backups below - start the folder
+                    with <code>/</code> for a full path, otherwise it's inside the app's own folder.
+                </p>
+                <div class="settings-buttons">
+                    <button type="submit" name="action" value="save" class="small-button">Save Settings</button>
+                    <button type="submit" name="action" value="backup_now" class="small-button">Save and Back Up Now</button>
+                </div>
             </form>
 
             <details class="settings-help">
@@ -89,9 +99,6 @@
             {% endif %}
 
             <div class="settings-buttons">
-                <form method="POST" action="{{ url_for('backup_now') }}">
-                    <button type="submit" class="small-button">Back Up Now</button>
-                </form>
                 <a href="{{ url_for('export_database') }}" class="small-button">Download a Copy</a>
             </div>
 
