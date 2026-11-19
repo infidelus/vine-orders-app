@@ -46,6 +46,12 @@
                 <button class="btn-filter" onclick="window.location.href='{{ url_for('orders', filter='awaiting') }}'">
                     Orders Awaiting Review
                 </button>
+                <button class="btn-filter btn-filter-overdue" onclick="window.location.href='{{ url_for('orders', filter='overdue') }}'">
+                    Overdue Reviews
+                </button>
+                <button class="btn-filter btn-filter-due-soon" onclick="window.location.href='{{ url_for('orders', filter='due_soon') }}'">
+                    Reviews Due Soon
+                </button>
                 <button class="btn-filter" onclick="window.location.href='{{ url_for('orders', filter='legally_mine') }}'">
                     Items Legally Mine
                 </button>
@@ -72,13 +78,14 @@
                             <th>Platform</th>
                         {% else %}
                             <th>Date Ordered</th>
+                            <th>Review Due</th>
                         {% endif %}
                         <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for order in orders %}
-                        <tr class="{% if order['review_date'] and order['review_date'] <= six_months_ago %}legally-mine{% endif %}">
+                        <tr class="{% if order['review_date'] and order['review_date'] <= six_months_ago %}legally-mine{% elif order['review_status'] == 'overdue' %}review-overdue{% elif order['review_status'] == 'due_soon' %}review-due-soon{% endif %}">
                             <td>{{ order['description'] }}</td>
                             <td class="price-column">{{ order['price'] }}</td>
                             {% if filter == 'sold' %}
@@ -87,6 +94,7 @@
                                 <td>{{ order['sale_platform'] }}</td>
                             {% else %}
                                 <td>{{ order['date_ordered'] }}</td>
+                                <td>{{ order['review_due'] or 'Reviewed' }}</td>
                             {% endif %}
                             <td>
                                 <a href="{{ url_for('view_order', order_id=order['id']) }}" class="small-button">

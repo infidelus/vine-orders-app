@@ -59,6 +59,18 @@
                 </div>
             </div>
 
+            <!-- Review reminders (each box links to the matching list of orders) -->
+            <div class="stat-row">
+                <a class="stat-box stat-link {% if reviews_overdue %}stat-alert{% endif %}" href="{{ url_for('orders', filter='overdue') }}">
+                    <h3>Reviews Overdue</h3>
+                    <p>{{ reviews_overdue }}</p>
+                </a>
+                <a class="stat-box stat-link {% if reviews_due_soon %}stat-warning{% endif %}" href="{{ url_for('orders', filter='due_soon') }}">
+                    <h3>Reviews Due in the Next {{ due_soon_days }} Days</h3>
+                    <p>{{ reviews_due_soon }}</p>
+                </a>
+            </div>
+
             <!-- New Current Review Period Section -->
             <div class="stat-row">
                 <div class="stat-box review-period">

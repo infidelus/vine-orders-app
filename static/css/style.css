@@ -1281,3 +1281,107 @@ body {
     font-size: 12px;
     opacity: 0.8;
 }
+
+/* --- Review reminders --- */
+/* Dashboard boxes that link to a filtered list of orders */
+.stat-link {
+    color: inherit;
+    text-decoration: none;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.stat-link:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
+}
+
+.stat-alert p {
+    color: #c0392b;
+    font-weight: bold;
+}
+
+.stat-warning p {
+    color: #d35400;
+    font-weight: bold;
+}
+
+.dark-mode .stat-alert p {
+    color: #ff7b6b;
+}
+
+.dark-mode .stat-warning p {
+    color: #ffb366;
+}
+
+/* Rows in the orders list */
+.review-overdue {
+    background-color: #fde2e0 !important;
+}
+
+.review-due-soon {
+    background-color: #fff1d0 !important;
+}
+
+.dark-mode .review-overdue {
+    background-color: #6b2a24 !important;
+}
+
+.dark-mode .review-due-soon {
+    background-color: #6b5220 !important;
+}
+
+.btn-filter-overdue {
+    background-color: #c0392b !important;
+}
+
+.btn-filter-overdue:hover {
+    background-color: #962d22 !important;
+}
+
+.btn-filter-due-soon {
+    background-color: #d35400 !important;
+}
+
+.btn-filter-due-soon:hover {
+    background-color: #a84300 !important;
+}
+
+/* Review due date on the order page */
+.due-text-overdue {
+    color: #c0392b;
+    font-weight: bold;
+}
+
+.due-text-soon {
+    color: #d35400;
+    font-weight: bold;
+}
+
+.dark-mode .due-text-overdue {
+    color: #ff7b6b;
+}
+
+.dark-mode .due-text-soon {
+    color: #ffb366;
+}
+
+/* --- Editing an order's details --- */
+.details-edit {
+    margin-bottom: 15px;
+}
+
+.details-edit .sale-form-row input[type="text"] {
+    max-width: none;
+    width: calc(100% - 160px);
+}
+
+/* --- Backup status on the statistics page --- */
+.backup-info {
+    margin: 20px 0 10px;
+    font-size: 14px;
+    opacity: 0.85;
+}
+
+.backup-info code {
+    font-size: 13px;
+}

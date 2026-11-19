@@ -25,8 +25,35 @@
         <div class="container">
             <!-- Left Column: Order Details -->
             <div class="left-column">
-                <p><strong>Description:</strong> {{ order['description'] }}</p>
-                <p><strong>Product URL:</strong> <a href="{{ order['url'] }}" target="_blank">{{ order['url'] }}</a></p>
+                <div id="details-display">
+                    <p><strong>Description:</strong> {{ order['description'] }}</p>
+                    <p><strong>Product URL:</strong> <a href="{{ order['url'] }}" target="_blank">{{ order['url'] }}</a></p>
+                    <button type="button" class="small-button" onclick="toggleDetailsEdit(true)">Edit Details</button>
+                </div>
+
+                <!-- Form to edit the description, URL and order date -->
+                <div id="details-edit-section" class="details-edit" style="display: none;">
+                    <h3>Edit Details</h3>
+                    <form method="POST" action="{{ url_for('update_details', order_id=order['id']) }}">
+                        <div class="sale-form-row">
+                            <label for="edit_description">Description:</label>
+                            <input type="text" id="edit_description" name="description"
+                                   value="{{ order['description'] or '' }}" required>
+                        </div>
+                        <div class="sale-form-row">
+                            <label for="edit_url">Product URL:</label>
+                            <input type="text" id="edit_url" name="url" value="{{ order['url'] or '' }}">
+                        </div>
+                        <div class="sale-form-row">
+                            <label for="edit_date_ordered">Date Ordered:</label>
+                            <input type="date" id="edit_date_ordered" name="date_ordered"
+                                   value="{{ order['date_ordered'] or '' }}"
+                                   {% if order['review_date'] %}max="{{ order['review_date'] }}"{% endif %} required>
+                        </div>
+                        <button type="submit" class="small-button">Save Details</button>
+                        <button type="button" class="cancel-button" onclick="toggleDetailsEdit(false)">Cancel</button>
+                    </form>
+                </div>
 
                 <!-- Price Editing Section -->
                 <p><strong>Price:</strong>
@@ -47,7 +74,8 @@
                 <!-- Date ordered -->
                 <p>Date Ordered: {{ order['date_ordered'] | datetimeformat(0) }}</p>
 
-                <p id="review-due-date" style="{% if order['review_date'] %}display: none;{% endif %}">
+                <p id="review-due-date" style="{% if order['review_date'] %}display: none;{% endif %}"
+                   class="{% if review_due_status == 'overdue' %}due-text-overdue{% elif review_due_status == 'due_soon' %}due-text-soon{% endif %}">
                     Review Due Date: {{ review_due_date }}
                 </p>
 
@@ -161,6 +189,13 @@
                 // Prevent selecting a review date earlier than the order date
                 document.getElementById('review_date').setAttribute('min', '{{ order["date_ordered"] }}');
 
+                // Show or hide the form for editing the description, URL and order date
+                function toggleDetailsEdit(isEditing) {
+                    document.getElementById('details-display').style.display = isEditing ? 'none' : 'block';
+                    document.getElementById('details-edit-section').style.display = isEditing ? 'block' : 'none';
+                    if (isEditing) document.getElementById('edit_description').focus();
+                }
+
                 // Show or hide the sale form
                 function toggleSaleEdit(isEditing) {
                     const saleFormSection = document.getElementById('sale-form-section');
@@ -228,7 +263,8 @@
             </div>
 
             <!-- Delete Button Form -->
-            <form action="{{ url_for('delete_order', order_id=order.id) }}" method="POST" style="display:inline;">
+            <form action="{{ url_for('delete_order', order_id=order.id) }}" method="POST" style="display:inline;"
+                  onsubmit="return confirm('Delete this order permanently? This cannot be undone.');">
                 <button type="submit" class="button-link delete-button">Delete</button>
             </form>
         </div>

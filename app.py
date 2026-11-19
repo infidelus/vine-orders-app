@@ -5,6 +5,10 @@ import io
 import logging
 import requests
 import sqlite3
+import os
+import shutil
+import threading
+import time
 from urllib.parse import urlparse, quote
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
@@ -16,10 +20,29 @@ app = Flask(__name__)
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 
-DATABASE = 'vine_orders.db'
+# Where the database is kept.  By default it's vine_orders.db next to app.py,
+# as it always has been.  In Docker, set the VINE_DATABASE variable to a path in
+# a mapped folder (e.g. /data/vine_orders.db) so rebuilding the image can't
+# lose your data - see the README.
+DEFAULT_DATABASE = 'vine_orders.db'
+DATABASE = os.environ.get('VINE_DATABASE', DEFAULT_DATABASE)
+
+# Automatic daily backups go in a 'backups' folder next to the database,
+# keeping the most recent VINE_BACKUP_KEEP copies (14 unless set otherwise)
+BACKUP_DIR = os.environ.get('VINE_BACKUP_DIR',
+                            os.path.join(os.path.dirname(os.path.abspath(DATABASE)), 'backups'))
+try:
+    BACKUP_KEEP = max(1, int(os.environ.get('VINE_BACKUP_KEEP', '14')))
+except ValueError:
+    BACKUP_KEEP = 14
 
 # Vine items become legally yours six months after the review date
 OWNERSHIP_DAYS = 180
+
+# Vine asks for a review within 30 days of ordering, and the dashboard warns
+# about reviews falling due within the next DUE_SOON_DAYS days
+REVIEW_DUE_DAYS = 30
+DUE_SOON_DAYS = 7
 
 # Desktop browsers only.  Mobile user agents make Amazon serve a completely
 # different page layout, which the price and title look-ups below don't expect.
@@ -338,6 +361,38 @@ def get_db_connection():
     return conn
 
 
+def review_due_info(date_ordered, review_date):
+    """
+    Work out when an unreviewed item's review is due and whether it's
+    'overdue', 'due_soon' or neither.  Returns (due_date, status), or
+    (None, None) once the item has been reviewed.
+    """
+    if review_date or not date_ordered:
+        return None, None
+    try:
+        due = datetime.strptime(date_ordered, '%Y-%m-%d').date() + timedelta(days=REVIEW_DUE_DAYS)
+    except ValueError:
+        return None, None
+    today = datetime.now().date()
+    if due < today:
+        return due, 'overdue'
+    if due <= today + timedelta(days=DUE_SOON_DAYS):
+        return due, 'due_soon'
+    return due, None
+
+
+def review_due_cutoffs():
+    """
+    The order dates that matter for reminders, as yyyy-mm-dd text:
+    anything ordered before 'overdue_before' is overdue, and anything ordered
+    from then up to 'due_soon_before' is due within DUE_SOON_DAYS.
+    """
+    today = datetime.now().date()
+    overdue_before = today - timedelta(days=REVIEW_DUE_DAYS)
+    due_soon_before = overdue_before + timedelta(days=DUE_SOON_DAYS)
+    return overdue_before.strftime('%Y-%m-%d'), due_soon_before.strftime('%Y-%m-%d')
+
+
 # Custom filter for formatting datetime in dd/mm/yyyy format
 @app.template_filter('datetimeformat')
 def datetimeformat(value, days=0, format='%d/%m/%Y'):
@@ -350,6 +405,78 @@ def datetimeformat(value, days=0, format='%d/%m/%Y'):
         date_obj += timedelta(days=days)  # Add the specified number of days
         return date_obj.strftime(format)
     return value  # In case value is None, return it unchanged
+
+
+def prepare_database_location():
+    """
+    Make sure the database's folder exists.  If VINE_DATABASE points somewhere
+    new and there's no database there yet, copy the existing one across so
+    nothing is lost when switching over.
+    """
+    folder = os.path.dirname(os.path.abspath(DATABASE))
+    os.makedirs(folder, exist_ok=True)
+
+    old_database = os.path.abspath(DEFAULT_DATABASE)
+    if (not os.path.exists(DATABASE) and os.path.exists(old_database)
+            and os.path.abspath(DATABASE) != old_database):
+        shutil.copy2(old_database, DATABASE)
+        logging.info(f"Copied the existing database from {old_database} to {os.path.abspath(DATABASE)}")
+
+    logging.info(f"Using database: {os.path.abspath(DATABASE)}")
+    logging.info(f"Backups folder: {os.path.abspath(BACKUP_DIR)} (keeping {BACKUP_KEEP})")
+
+
+def list_backups():
+    """Return the backup files, newest first."""
+    if not os.path.isdir(BACKUP_DIR):
+        return []
+    names = [name for name in os.listdir(BACKUP_DIR)
+             if name.startswith('vine_orders-') and name.endswith('.db')]
+    return sorted(names, reverse=True)
+
+
+def backup_database():
+    """
+    Make today's backup if there isn't one already, then delete the oldest
+    backups beyond BACKUP_KEEP.  SQLite's own backup method is used, so the
+    copy is safe even if the app is in the middle of saving something.
+    """
+    if not os.path.exists(DATABASE):
+        return None
+
+    os.makedirs(BACKUP_DIR, exist_ok=True)
+    backup_name = f"vine_orders-{datetime.now().strftime('%Y-%m-%d')}.db"
+    backup_path = os.path.join(BACKUP_DIR, backup_name)
+
+    if not os.path.exists(backup_path):
+        source = sqlite3.connect(DATABASE)
+        # Write to a temporary name first, so a half-finished backup is never
+        # mistaken for a good one
+        temp_path = backup_path + '.tmp'
+        target = sqlite3.connect(temp_path)
+        with target:
+            source.backup(target)
+        target.close()
+        source.close()
+        os.replace(temp_path, backup_path)
+        logging.info(f"Backup saved: {backup_path}")
+
+    # Remove the oldest backups beyond the number we're keeping
+    for old_name in list_backups()[BACKUP_KEEP:]:
+        os.remove(os.path.join(BACKUP_DIR, old_name))
+        logging.info(f"Old backup removed: {old_name}")
+
+    return backup_name
+
+
+def backup_loop():
+    """Runs in the background: checks once an hour whether today's backup is due."""
+    while True:
+        try:
+            backup_database()
+        except Exception as e:
+            logging.error(f"Automatic backup failed: {e}")
+        time.sleep(60 * 60)
 
 
 # Function to initialise the database and apply any schema migrations
@@ -422,8 +549,10 @@ def init_db():
     conn.close()
 
 
-# Initialise the database
+# Initialise the database, then start the automatic daily backups
+prepare_database_location()
 init_db()
+threading.Thread(target=backup_loop, daemon=True, name='daily-backup').start()
 
 
 # Helper function to get the current review period from the database
@@ -525,6 +654,19 @@ def index():
     ''')
     sales_current_year = cursor.fetchone()[0] or 0
 
+    # --- Review reminders ---
+    overdue_before, due_soon_before = review_due_cutoffs()
+    cursor.execute('''
+        SELECT COUNT(*) FROM orders
+        WHERE review_date IS NULL AND date_ordered < ?
+    ''', (overdue_before,))
+    reviews_overdue = cursor.fetchone()[0]
+    cursor.execute('''
+        SELECT COUNT(*) FROM orders
+        WHERE review_date IS NULL AND date_ordered >= ? AND date_ordered <= ?
+    ''', (overdue_before, due_soon_before))
+    reviews_due_soon = cursor.fetchone()[0]
+
     # Fetch the statistics for the current review period
     review_period = get_current_review_period()
     if review_period:
@@ -588,6 +730,9 @@ def index():
     # Return the values to the template
     return render_template('index.html',
                            prefill=prefill,
+                           reviews_overdue=reviews_overdue,
+                           reviews_due_soon=reviews_due_soon,
+                           due_soon_days=DUE_SOON_DAYS,
                            bookmarklet=build_bookmarklet(request.host_url),
                            total_orders=total_orders,
                            items_ordered_current_year=items_ordered_current_year,
@@ -620,8 +765,12 @@ def add_order():
     except ValueError:
         return "Error: The price must be a number (or left blank).", 400
 
-    # Review due date is 30 days after the order date
-    review_due_date = (datetime.strptime(date_ordered, '%Y-%m-%d') + timedelta(days=30)).strftime('%Y-%m-%d')
+    # Review due date is REVIEW_DUE_DAYS after the order date
+    try:
+        review_due_date = (datetime.strptime(date_ordered, '%Y-%m-%d')
+                           + timedelta(days=REVIEW_DUE_DAYS)).strftime('%Y-%m-%d')
+    except ValueError:
+        return "Error: A valid order date is required.", 400
     review_date = None  # Initially, no review has been completed
 
     conn = get_db_connection()
@@ -714,6 +863,20 @@ def orders():
         where_sql = 'WHERE review_date <= ?' + search_sql
         total_items, orders = count_and_fetch(where_sql, [six_months_ago] + search_params)
 
+    elif filter_type == 'overdue':
+        # Not reviewed and past the due date - oldest (most overdue) first
+        overdue_before, _ = review_due_cutoffs()
+        where_sql = 'WHERE review_date IS NULL AND date_ordered < ?' + search_sql
+        total_items, orders = count_and_fetch(where_sql, [overdue_before] + search_params,
+                                              order_by='date_ordered ASC')
+
+    elif filter_type == 'due_soon':
+        # Not reviewed and due within the next few days - soonest first
+        overdue_before, due_soon_before = review_due_cutoffs()
+        where_sql = 'WHERE review_date IS NULL AND date_ordered >= ? AND date_ordered <= ?' + search_sql
+        total_items, orders = count_and_fetch(where_sql, [overdue_before, due_soon_before] + search_params,
+                                              order_by='date_ordered ASC')
+
     elif filter_type == 'sold':
         # Sold items, most recent sale first
         where_sql = 'WHERE date_sold IS NOT NULL' + search_sql
@@ -740,8 +903,12 @@ def orders():
         else:
             formatted_sale_price = "N/A"
 
+        due_date, review_status = review_due_info(order['date_ordered'], order['review_date'])
+
         formatted_order = {
             'id': order['id'],
+            'review_due': due_date.strftime('%d/%m/%Y') if due_date else None,
+            'review_status': review_status,
             'description': order['description'],
             'price': formatted_price,
             'date_ordered': datetime.strptime(order['date_ordered'], '%Y-%m-%d').strftime('%d/%m/%Y'),
@@ -806,12 +973,20 @@ def view_order(order_id):
     date_ordered = datetime.strptime(order['date_ordered'], '%Y-%m-%d')
 
     # Logic for review due date
+    review_due_status = None
     if order['review']:  # If there's a review, set due date to 'Complete'
         review_due_date = 'Complete'
         review_date = datetime.strptime(order['review_date'], '%Y-%m-%d').strftime('%d/%m/%Y') if order['review_date'] else 'Not reviewed yet'
     else:
-        # Calculate 30 days from the order date for review due date
-        review_due_date = (date_ordered + timedelta(days=30)).strftime('%d/%m/%Y')
+        # The review is due REVIEW_DUE_DAYS after the order date
+        due_date, review_status = review_due_info(order['date_ordered'], order['review_date'])
+        review_due_date = due_date.strftime('%d/%m/%Y') if due_date else 'Unknown'
+        days_left = (due_date - datetime.now().date()).days if due_date else None
+        if review_status == 'overdue':
+            review_due_date += f" (overdue by {-days_left} day{'s' if days_left != -1 else ''})"
+        elif review_status == 'due_soon':
+            review_due_date += " (due today)" if days_left == 0 else f" (in {days_left} day{'s' if days_left != 1 else ''})"
+        review_due_status = review_status
         review_date = 'Not reviewed yet'
 
     return render_template('view_order.html',
@@ -822,9 +997,53 @@ def view_order(order_id):
                            is_owned=is_owned,
                            ownership_date=ownership_date,
                            review_due_date=review_due_date,
+                           review_due_status=review_due_status,
                            review_date=review_date,
                            platforms=platforms,
                            today=datetime.now().strftime('%Y-%m-%d'))
+
+
+# Edit an order's description, URL and order date
+@app.route('/orders/<int:order_id>/update_details', methods=['POST'])
+def update_details(order_id):
+    description = ' '.join(request.form.get('description', '').split())
+    url, _ = normalise_amazon_url(request.form.get('url', ''))
+    date_ordered = request.form.get('date_ordered', '').strip()
+
+    if not description:
+        return "Error: The description can't be empty.", 400
+    try:
+        order_date = datetime.strptime(date_ordered, '%Y-%m-%d')
+    except ValueError:
+        return "Error: A valid order date is required.", 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    order = cursor.execute('SELECT review_date FROM orders WHERE id = ?', (order_id,)).fetchone()
+    if order is None:
+        conn.close()
+        return render_template('not_found.html'), 404
+
+    # The order date can't be after the review was written
+    if order['review_date'] and order_date > datetime.strptime(order['review_date'], '%Y-%m-%d'):
+        conn.close()
+        return "Error: The order date can't be later than the review date.", 400
+
+    # Keep the stored due date in step with the order date (unless already reviewed)
+    if order['review_date']:
+        review_due_date = 'Complete'
+    else:
+        review_due_date = (order_date + timedelta(days=REVIEW_DUE_DAYS)).strftime('%Y-%m-%d')
+
+    cursor.execute('''
+        UPDATE orders
+        SET description = ?, url = ?, date_ordered = ?, review_due_date = ?
+        WHERE id = ?
+    ''', (description, url, date_ordered, review_due_date, order_id))
+    conn.commit()
+    conn.close()
+
+    return redirect(url_for('view_order', order_id=order_id))
 
 
 # Mark an order as sold (or update the sale details)
@@ -1152,7 +1371,18 @@ def stats():
 
     conn.close()
 
+    # Backup details for the bottom of the page
+    backups = list_backups()
+    if backups:
+        latest = datetime.strptime(backups[0][len('vine_orders-'):-len('.db')], '%Y-%m-%d')
+        latest_backup = latest.strftime('%d/%m/%Y')
+    else:
+        latest_backup = None
+
     return render_template('stats.html',
+                           latest_backup=latest_backup,
+                           backup_count=len(backups),
+                           backup_dir=os.path.abspath(BACKUP_DIR),
                            total_orders=total_orders,
                            total_value=f"{(total_value or 0):.2f}",
                            items_sold=items_sold,
@@ -1226,6 +1456,27 @@ def export_sales_csv():
         rows,
         'vine_sales.csv'
     )
+
+
+# Download a copy of the whole database (a manual backup)
+@app.route('/export/database')
+def export_database():
+    # Make a consistent copy first, rather than sending the live file
+    temp_path = os.path.join(BACKUP_DIR, 'download.tmp')
+    os.makedirs(BACKUP_DIR, exist_ok=True)
+    source = sqlite3.connect(DATABASE)
+    target = sqlite3.connect(temp_path)
+    with target:
+        source.backup(target)
+    target.close()
+    source.close()
+    with open(temp_path, 'rb') as f:
+        data = f.read()
+    os.remove(temp_path)
+
+    filename = f"vine_orders-{datetime.now().strftime('%Y-%m-%d')}.db"
+    return Response(data, mimetype='application/octet-stream',
+                    headers={'Content-Disposition': f'attachment; filename={filename}'})
 
 
 if __name__ == '__main__':

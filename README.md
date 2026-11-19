@@ -10,12 +10,15 @@ This Flask application was originally written almost entirely by ChatGPT. Other 
 - **Review period tracking** - set your six-month evaluation period and see items ordered, items reviewed and your review percentage at a glance (green when you're meeting the 80-item / 90% requirements, red when you're not)
 - **Add orders** by pasting the Amazon URL - the description and price are looked up automatically, with a one-click browser button as a more reliable alternative and a warning if you've already got the item
 - **Review management** - write reviews in Markdown with a built-in editor, track review dates and due dates
+- **Review reminders** - the dashboard shows how many reviews are overdue or due in the next 7 days, overdue and due-soon orders are highlighted in the orders list, and there are filters for each
+- **Edit order details** - fix the description, URL or order date of any order
 - **Ownership tracking** - each item shows when it becomes legally yours (six months after the review date), with an "Items Legally Mine" filter
 - **Sales tracking** - mark items as sold with the date, sale price, platform and optional fees. The platform is free text with autocomplete from your previous entries, so it works with eBay, Vinted, Facebook Marketplace or anywhere else you sell. The dashboard shows items sold, total sales, net sales after fees and sales this year, and the orders page has a Sold Items filter
 - **Statistics page** with charts covering orders per month, orders and value per year, sales per month and sales by platform, plus a per-platform breakdown of gross, fees and net
 - **CSV exports** of all orders, or just your sold items with net amounts worked out
 - **Search and filters** with pagination and a page-jump box for large collections
 - **CSV import** for your Amazon data export, plus a separate script to bulk-import prices
+- **Automatic daily backups** of the database, plus a button to download a copy whenever you like
 - **Dark mode**, because of course
 
 A few images of the app:
@@ -41,6 +44,20 @@ If you are running the app on your local machine then it will be available in yo
 
 Change the port number as required, save the file and then restart the app and adjust the browser URL port.
 
+## Keeping Your Data Safe (Docker / Unraid)
+
+By default the database (vine_orders.db) is kept next to app.py, as it always has been. If you run the app in Docker and that folder isn't mapped to your server's storage, **rebuilding the image can wipe your orders**. To keep the database outside the container:
+
+1. In the container settings (on Unraid: edit the container, then "Add another Path, Port, Variable..."), add a **Path** with container path `/data` and host path such as `/mnt/user/appdata/vine-orders`.
+2. Add a **Variable** called `VINE_DATABASE` with the value `/data/vine_orders.db`.
+3. Start the container. On first start the app copies your existing database to the new location automatically (it only does this if there isn't already a database there), and the log shows where the database and backups are being kept.
+
+### Backups
+
+Once a day the app saves a copy of the database in a `backups` folder next to it, named by date (e.g. `vine_orders-2026-11-19.db`), and keeps the most recent 14. To keep a different number, set the `VINE_BACKUP_KEEP` variable; to put backups somewhere else, set `VINE_BACKUP_DIR`. The Statistics page shows when the last backup was made, and its 'Download Database' button gives you a copy straight away.
+
+To restore a backup, stop the app, replace vine_orders.db with the backup file (renamed to vine_orders.db) and start it again.
+
 ## Updating from an earlier version
 
 Your existing database is upgraded automatically - the first time the new version starts it adds the sales tracking columns and tidies a few data quirks, with no manual steps needed. It's still sensible to take a copy of vine_orders.db first, as you should before any update.
@@ -56,6 +73,10 @@ First, download your data from Amazon. There should be a VineOrders.csv file, or
 ## Import Prices
 
 There is also a separate Python script to import prices (import_prices.py). This exists because when I started playing with the program I only had the Amazon data that I requested which, as Vine items are free, all shows £0.00. I was considering manually entering all the prices, and started to do so. I then got exceptionally bored and, as I had another CSV file that I had been using up to that point that contained most of the prices, decided to have a script written to match the URLs and import the relevant prices. It expects a prices.csv file with url and price columns in the app's root folder.
+
+## Review Reminders
+
+Vine asks for a review within 30 days of ordering. The dashboard has two boxes showing how many unreviewed items are overdue and how many fall due in the next 7 days; click either to see the items. In the orders list, overdue items are highlighted in red and those due soon in amber, with a Review Due column, and the 'Overdue Reviews' and 'Reviews Due Soon' filters list them oldest first so the most urgent are at the top. Each order's page also says how many days are left (or how overdue it is).
 
 ## Sales Tracking
 
