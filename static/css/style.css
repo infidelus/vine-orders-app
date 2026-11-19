@@ -1201,3 +1201,83 @@ body {
     display: flex;
     gap: 10px;
 }
+
+/* --- Find button messages and the browser button --- */
+#find-button:disabled {
+    opacity: 0.6;
+    cursor: wait;
+}
+
+.find-status {
+    margin: -4px 0 10px;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 14px;
+    border-left: 4px solid;
+}
+
+.find-status-info {
+    background-color: #e8f0fb;
+    border-color: #456EBA;
+    color: #1d3557;
+}
+
+.find-status-warning {
+    background-color: #fff4d6;
+    border-color: #d99a00;
+    color: #5c4300;
+}
+
+.find-status-error {
+    background-color: #fde8e8;
+    border-color: #c0392b;
+    color: #6b1a12;
+}
+
+.dark-mode .find-status-info {
+    background-color: #1d2a3d;
+    color: #cfe0f7;
+}
+
+.dark-mode .find-status-warning {
+    background-color: #3a2f12;
+    color: #f5dfa0;
+}
+
+.dark-mode .find-status-error {
+    background-color: #3d1d1d;
+    color: #f5c0c0;
+}
+
+.find-status a,
+.dark-mode .find-status a {
+    color: inherit;
+    text-decoration: underline;
+}
+
+.bookmarklet-help {
+    margin-top: 15px;
+    font-size: 14px;
+}
+
+.bookmarklet-help summary {
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.bookmarklet-link {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 4px 10px;
+    background-color: #FF9900;
+    color: #111111 !important;
+    border-radius: 4px;
+    text-decoration: none;
+    font-weight: bold;
+    cursor: grab;
+}
+
+.bookmarklet-note {
+    font-size: 12px;
+    opacity: 0.8;
+}

@@ -8,7 +8,7 @@ This Flask application was originally written almost entirely by ChatGPT. Other 
 
 - **Dashboard** with statistics: total orders, total value, items ordered this year and their value
 - **Review period tracking** - set your six-month evaluation period and see items ordered, items reviewed and your review percentage at a glance (green when you're meeting the 80-item / 90% requirements, red when you're not)
-- **Add orders** by pasting the Amazon URL - the Find button scrapes the description and price for you
+- **Add orders** by pasting the Amazon URL - the description and price are looked up automatically, with a one-click browser button as a more reliable alternative and a warning if you've already got the item
 - **Review management** - write reviews in Markdown with a built-in editor, track review dates and due dates
 - **Ownership tracking** - each item shows when it becomes legally yours (six months after the review date), with an "Items Legally Mine" filter
 - **Sales tracking** - mark items as sold with the date, sale price, platform and optional fees. The platform is free text with autocomplete from your previous entries, so it works with eBay, Vinted, Facebook Marketplace or anywhere else you sell. The dashboard shows items sold, total sales, net sales after fees and sales this year, and the orders page has a Sold Items filter
@@ -69,9 +69,13 @@ If you like your data, there's a 'Statistics' button on the dashboard. It opens 
 
 At the bottom of that page are two export buttons. 'Export All Orders' gives you a CSV of everything in the database, useful for backups or if you fancy doing your own analysis in a spreadsheet. 'Export Sold Items' gives you just the items you've sold, with the date, platform, sale price, fees and calculated net amount, which is a sensible starting point if you ever need records of your selling income.
 
-## Notes on Price Scraping
+## Adding Orders: the Find Button and the Browser Button
 
-The Find button works quite well with the only notable issue being scraping the price on certain items, but this is likely either because Amazon don't like it when we don't pay them to scrape product information from their site or that the product has no price information.
+Paste an Amazon link into the Product URL box and the app looks the product up straight away (or press Find / Enter). Long links full of tracking codes are tidied to the short `amazon.co.uk/dp/ASIN` form, short links from the Amazon app's Share button are followed, and you're warned if you've already got the same item in the database. If no price is found the box is left blank rather than set to £0.00 - you can add the order without a price and fill it in later.
+
+Amazon doesn't like automated visitors, so sometimes it answers with its "are you a robot?" page instead of the product. The app now recognises this and tells you, rather than quietly returning nothing. Vine items also often have no price on Amazon until they go on general sale, so a missing price isn't always the app's fault.
+
+For the most reliable results, use the **browser button**. Open "Browser button" under the Add a New Order form and drag the orange "Add to Vine Orders" button to your bookmarks bar. Then, on any Amazon product page, click it. The app opens in a new tab with the description and price already filled in from the page you were looking at, so Amazon's bot checks never come into it.
 
 ## Thanks
 

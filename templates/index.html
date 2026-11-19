@@ -94,16 +94,21 @@
             <form method="POST" action="{{ url_for('add_order') }}">
                 <div class="form-row">
                     <label for="url" class="text-label">Product URL:</label>
-                    <input type="text" id="url" name="url" class="url-input" required>
+                    <input type="text" id="url" name="url" class="url-input" required
+                           value="{{ prefill.url }}" placeholder="Paste an Amazon link - details are looked up automatically">
                     <button type="button" id="find-button" onclick="fetchProductData()">Find</button>
                 </div>
+                <!-- Messages from the Find button (e.g. 'no price found' or 'already ordered') -->
+                <div id="find-status" class="find-status" role="status" hidden></div>
                 <div class="form-row">
                     <label for="description">Product Description:</label>
-                    <input type="text" id="description" name="description" class="full-width-field" required>
+                    <input type="text" id="description" name="description" class="full-width-field" required
+                           value="{{ prefill.description }}">
                 </div>
                 <div class="form-row">
                     <label for="price">Product Price (£):</label>
-                    <input type="number" id="price" name="price" step="0.01" class="full-width-field" required>
+                    <input type="number" id="price" name="price" step="0.01" min="0" class="full-width-field"
+                           value="{{ prefill.price }}" placeholder="Leave blank if unknown">
                 </div>
                 <div class="form-row">
                     <label for="date_ordered">Date Ordered:</label><br>
@@ -120,6 +125,24 @@
                     <button class="button-link" type="submit">Add Order</button>
                 </div>
             </form>
+
+            <!-- Browser button: drag to the bookmarks bar, then click it on any Amazon product page -->
+            <details class="bookmarklet-help">
+                <summary>Browser button: add items straight from the Amazon page</summary>
+                <p>
+                    Drag this button to your browser's bookmarks bar:
+                    <a class="bookmarklet-link" href="{{ bookmarklet }}" onclick="alert('Drag this button to your bookmarks bar rather than clicking it here.'); return false;">Add to Vine Orders</a>
+                </p>
+                <p>
+                    Then, when you're looking at a product on Amazon, click it in your bookmarks bar.
+                    This app opens in a new tab with the description and price already filled in.
+                    Because it reads the page you're already looking at, Amazon's "are you a robot?"
+                    checks don't get in the way. It's much more reliable than the Find button.
+                </p>
+                <p class="bookmarklet-note">
+                    If you change the address you use to reach this app, drag the button across again.
+                </p>
+            </details>
         </div>
 
         <div class="links">
@@ -133,35 +156,111 @@
     </div>
 
     <script>
-        async function fetchProductData() {
-            const url = document.getElementById("url").value;
-
-            if (!url) {
-                alert("Please enter a valid URL");
+        // Show a message under the URL box ('info', 'warning' or 'error')
+        function showFindStatus(html, kind) {
+            const box = document.getElementById("find-status");
+            if (!html) {
+                box.hidden = true;
+                box.innerHTML = "";
                 return;
             }
+            box.className = "find-status find-status-" + (kind || "info");
+            box.innerHTML = html;
+            box.hidden = false;
+        }
+
+        // Warn if this product is already in the database
+        function existingOrdersMessage(existing) {
+            if (!existing || existing.length === 0) return "";
+            const links = existing.map(o =>
+                `<a href="/orders/${o.id}" target="_blank">ordered ${o.date_ordered}</a>`).join(", ");
+            return `You already have this item (${links}).`;
+        }
+
+        async function fetchProductData() {
+            const urlBox = document.getElementById("url");
+            const findButton = document.getElementById("find-button");
+            const url = urlBox.value.trim();
+
+            if (!url) {
+                showFindStatus("Please paste a product URL first.", "error");
+                return;
+            }
+
+            // Show that something is happening - Amazon can take a few seconds
+            findButton.disabled = true;
+            findButton.textContent = "Finding…";
+            showFindStatus("Looking up the product on Amazon…", "info");
 
             try {
                 const response = await fetch("/fetch-product-info", {
                     method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
+                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ url: url }),
                 });
-
-                if (!response.ok) {
-                    throw new Error("Failed to fetch product data");
-                }
-
                 const data = await response.json();
-                document.getElementById("description").value = data.description || "";
-                document.getElementById("price").value = data.price || 0;
+
+                // Replace the long Amazon link with the tidy /dp/ version
+                if (data.url) urlBox.value = data.url;
+
+                // Only fill in what was found, so nothing you typed is wiped out
+                if (data.description) document.getElementById("description").value = data.description;
+                if (data.price) document.getElementById("price").value = Number(data.price).toFixed(2);
+
+                const messages = [];
+                const duplicate = existingOrdersMessage(data.existing);
+                if (duplicate) messages.push(duplicate);
+                if (data.message) messages.push(data.message);
+
+                if (messages.length === 0) {
+                    showFindStatus("Product details found.", "info");
+                } else {
+                    const kind = (!data.description) ? "error" : "warning";
+                    showFindStatus(messages.join("<br>"), kind);
+                }
             } catch (error) {
                 console.error("Error:", error);
-                alert("Could not fetch product data.");
+                showFindStatus("Could not fetch product data - is the app still running?", "error");
+            } finally {
+                findButton.disabled = false;
+                findButton.textContent = "Find";
             }
         }
+
+        document.addEventListener("DOMContentLoaded", function () {
+            const urlBox = document.getElementById("url");
+
+            // Look the product up automatically as soon as a link is pasted
+            urlBox.addEventListener("paste", function () {
+                // Wait a moment so the pasted text is in the box
+                setTimeout(fetchProductData, 50);
+            });
+
+            // Pressing Enter in the URL box runs Find rather than submitting the form
+            urlBox.addEventListener("keydown", function (event) {
+                if (event.key === "Enter") {
+                    event.preventDefault();
+                    fetchProductData();
+                }
+            });
+
+            // Arrived from the browser button: check whether it's a duplicate,
+            // without re-scraping Amazon (we already have the details)
+            {% if prefill.url %}
+            fetch("/check-existing?url=" + encodeURIComponent(urlBox.value))
+                .then(response => response.json())
+                .then(data => {
+                    const messages = ["Details filled in from the Amazon page - check them and press Add Order."];
+                    const duplicate = existingOrdersMessage(data.existing);
+                    if (duplicate) messages.unshift(duplicate);
+                    {% if not prefill.price %}
+                    messages.push("No price was shown on the Amazon page, so you may need to enter it yourself.");
+                    {% endif %}
+                    showFindStatus(messages.join("<br>"), duplicate ? "warning" : "info");
+                })
+                .catch(error => console.error("Error checking for duplicates:", error));
+            {% endif %}
+        });
     </script>
 
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>

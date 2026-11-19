@@ -5,6 +5,7 @@ import io
 import logging
 import requests
 import sqlite3
+from urllib.parse import urlparse, quote
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 import markdown
@@ -20,74 +21,314 @@ DATABASE = 'vine_orders.db'
 # Vine items become legally yours six months after the review date
 OWNERSHIP_DAYS = 180
 
+# Desktop browsers only.  Mobile user agents make Amazon serve a completely
+# different page layout, which the price and title look-ups below don't expect.
 # A useful page for the current user agents is https://www.whatismybrowser.com/guides/the-latest-user-agent/
 USER_AGENTS = [
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/130.0.6723.78 Mobile/15E148 Safari/604.1',
-    'Mozilla/5.0 (iPad; CPU OS 17_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/130.0.6723.78 Mobile/15E148 Safari/604.1',
-    'Mozilla/5.0 (iPod; CPU iPhone OS 17_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/130.0.6723.78 Mobile/15E148 Safari/604.1',
-    'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.6723.73 Mobile Safari/537.36',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:131.0) Gecko/20100101 Firefox/131.0',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 14.7; rv:131.0) Gecko/20100101 Firefox/131.0',
-    'Mozilla/5.0 (X11; Linux i686; rv:131.0) Gecko/20100101 Firefox/131.0',
-    'Mozilla/5.0 (X11; Linux x86_64; rv:131.0) Gecko/20100101 Firefox/131.0',
-    'Mozilla/5.0 (X11; Ubuntu; Linux i686; rv:131.0) Gecko/20100101 Firefox/131.0',
-    'Mozilla/5.0 (X11; Fedora; Linux x86_64; rv:131.0) Gecko/20100101 Firefox/131.0',
-    'Mozilla/5.0 (Android 15; Mobile; rv:131.0) Gecko/131.0 Firefox/131.0',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15',
-    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:145.0) Gecko/20100101 Firefox/145.0',
+    'Mozilla/5.0 (X11; Linux x86_64; rv:145.0) Gecko/20100101 Firefox/145.0',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15',
 ]
+
+# Sending only a User-Agent looks very unlike a real browser, so send the
+# other headers a browser normally includes as well
+BASE_HEADERS = {
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+    'Accept-Language': 'en-GB,en;q=0.9',
+    'Upgrade-Insecure-Requests': '1',
+    'DNT': '1',
+}
+
+# Places Amazon puts the main "price to pay", most reliable first.  Amazon
+# changes its layout from time to time, so if prices stop being found this
+# is the list to update.
+PRICE_SELECTORS = [
+    '#corePriceDisplay_desktop_feature_div .priceToPay',
+    '#corePriceDisplay_desktop_feature_div .a-price',
+    '#corePrice_feature_div .a-price',
+    '#corePrice_desktop .a-price',
+    '#apex_desktop .priceToPay',
+    '#apex_desktop .a-price',
+    '#booksHeaderSection .a-price',
+    '#tmmSwatches .a-button-selected .a-color-price',
+    '#kindle-price',
+    '#price_inside_buybox',
+    '#newBuyBoxPrice',
+    '#priceblock_ourprice',
+    '#priceblock_dealprice',
+    '#price',
+]
+
+# Short links (e.g. from the Amazon app's Share button) that need following
+SHORT_LINK_HOSTS = ('amzn.eu', 'amzn.to', 'a.co', 'amzn.asia')
+
+# Product codes (ASINs) are 10 letters/digits and appear after /dp/, /gp/product/ etc.
+ASIN_PATTERN = re.compile(r'/(?:dp|gp/product|gp/aw/d|product|exec/obidos/ASIN)/([A-Z0-9]{10})(?:[/?#]|$)', re.I)
+
+
+def extract_asin(url):
+    """Return the product code (ASIN) from an Amazon URL, or None."""
+    match = ASIN_PATTERN.search(url or '')
+    return match.group(1).upper() if match else None
+
+
+def normalise_amazon_url(url):
+    """
+    Turn a long Amazon URL (full of tracking codes) into the short, tidy
+    https://www.amazon.co.uk/dp/ASIN form.  This is both nicer to store and
+    makes it easy to spot if you've already added the same item.
+    Returns (tidy_url, asin).  If no ASIN can be found the URL is returned unchanged.
+    """
+    url = (url or '').strip()
+    if url and not url.startswith(('http://', 'https://')):
+        url = 'https://' + url
+
+    asin = extract_asin(url)
+    if not asin:
+        return url, None
+
+    host = urlparse(url).netloc.lower()
+    # Keep the same Amazon country site (co.uk, com, de...) the link was for
+    if not host.startswith('www.') and host.startswith('amazon.'):
+        host = 'www.' + host
+    if 'amazon.' not in host:
+        host = 'www.amazon.co.uk'
+    return f'https://{host}/dp/{asin}', asin
+
+
+def parse_price(text):
+    """
+    Turn price text such as '£1,299.99', '12,99 €' or '£15.00 - £20.00'
+    into a number.  Returns None if no sensible price can be found.
+    """
+    if not text:
+        return None
+    # For a price range, use the first (lowest) price
+    match = re.search(r'\d[\d.,\s]*', text)
+    if not match:
+        return None
+    number = re.sub(r'\s', '', match.group(0)).rstrip('.,')
+
+    if ',' in number and '.' in number:
+        # Whichever comes last is the decimal point
+        if number.rfind(',') > number.rfind('.'):
+            number = number.replace('.', '').replace(',', '.')
+        else:
+            number = number.replace(',', '')
+    elif ',' in number:
+        # '12,99' is a decimal comma; '1,299' is a thousands separator
+        if re.search(r',\d{2}$', number):
+            number = number.replace(',', '.')
+        else:
+            number = number.replace(',', '')
+
+    try:
+        price = float(number)
+    except ValueError:
+        return None
+    return price if price > 0 else None
+
+
+def price_from_element(element):
+    """Read a price from one of Amazon's price elements."""
+    # The hidden 'a-offscreen' span holds the full price as text (e.g. '£12.99')
+    offscreen = element.select_one('.a-offscreen')
+    if offscreen and offscreen.get_text(strip=True):
+        return parse_price(offscreen.get_text(strip=True))
+
+    # Newer layouts sometimes leave that empty and split the price into parts
+    whole = element.select_one('.a-price-whole')
+    if whole:
+        fraction = element.select_one('.a-price-fraction')
+        whole_text = re.sub(r'[^\d]', '', whole.get_text())
+        fraction_text = re.sub(r'[^\d]', '', fraction.get_text()) if fraction else '00'
+        return parse_price(f'{whole_text}.{fraction_text or "00"}')
+
+    return parse_price(element.get_text(' ', strip=True))
+
+
+def find_price(soup):
+    """Try each known price location in turn."""
+    for selector in PRICE_SELECTORS:
+        for element in soup.select(selector):
+            # Skip per-unit prices such as '£2.50 / 100 g' and crossed-out RRPs
+            classes = ' '.join(element.get('class', []))
+            if 'a-text-price' in classes or element.find_parent(class_='pricePerUnit'):
+                continue
+            price = price_from_element(element)
+            if price:
+                logging.info(f"Price {price} found using '{selector}'")
+                return price
+
+    # Some pages keep the price in a hidden form field
+    for field_id in ('twister-plus-price-data-price', 'attach-base-product-price'):
+        field = soup.find('input', id=field_id)
+        if field and parse_price(field.get('value')):
+            logging.info(f"Price found in hidden field '{field_id}'")
+            return parse_price(field.get('value'))
+
+    return None
+
+
+def find_title(soup):
+    """Find the product title, falling back to the page's meta data."""
+    for element_id in ('productTitle', 'ebooksProductTitle', 'title'):
+        tag = soup.find(id=element_id)
+        if tag and tag.get_text(strip=True):
+            return ' '.join(tag.get_text().split())
+
+    for attrs in ({'name': 'title'}, {'property': 'og:title'}):
+        meta = soup.find('meta', attrs=attrs)
+        if meta and meta.get('content'):
+            return tidy_page_title(meta['content'])
+
+    if soup.title and soup.title.string:
+        return tidy_page_title(soup.title.string)
+    return ''
+
+
+def tidy_page_title(title):
+    """Strip the 'Amazon.co.uk: ' prefix and ': Amazon.co.uk: Category' suffix."""
+    title = ' '.join(title.split())
+    title = re.sub(r'^Amazon\.[a-z.]+\s*:\s*', '', title, flags=re.I)
+    title = re.split(r'\s*:\s*Amazon\.[a-z.]+', title, flags=re.I)[0]
+    # A bare 'Amazon.co.uk' title means we didn't get a product page at all
+    return '' if re.fullmatch(r'Amazon\.[a-z.]+', title, flags=re.I) else title
+
+
+def looks_blocked(response, soup):
+    """
+    Amazon often answers automated requests with a 'Continue shopping' or
+    'Enter the characters you see' page.  It arrives with a normal 200 status,
+    so it has to be recognised by its content.
+    """
+    if response.status_code in (429, 503):
+        return True
+    if soup.find(id='productTitle'):
+        return False
+    text = response.text
+    return ('validateCaptcha' in text
+            or 'api-services-support@amazon.com' in text
+            or 'Sorry, we just need to make sure you' in text)
 
 
 def scrape_price_and_description(url):
-    headers = {'User-Agent': random.choice(USER_AGENTS)}
-    logging.info(f"Using User-Agent: {headers['User-Agent']} for URL: {url}")
+    """
+    Fetch an Amazon product page and pull out the title and price.
+    Always returns a dictionary with 'description', 'price' (a number or None),
+    'url', 'asin' and, if something went wrong, a human-readable 'message'.
+    """
+    session = requests.Session()
+    session.headers.update(BASE_HEADERS)
+    session.headers['User-Agent'] = random.choice(USER_AGENTS)
+
+    result = {'description': '', 'price': None, 'url': url, 'asin': None, 'message': ''}
 
     try:
-        response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status()
-        logging.info("Request successful, parsing HTML...")
+        # Follow short links first so we can find the product code
+        if urlparse(url if '://' in url else 'https://' + url).netloc.lower() in SHORT_LINK_HOSTS:
+            response = session.get(url if '://' in url else 'https://' + url, timeout=10, allow_redirects=True)
+            url = response.url
 
+        tidy_url, asin = normalise_amazon_url(url)
+        result['url'] = tidy_url
+        result['asin'] = asin
+        logging.info(f"Fetching {tidy_url} using User-Agent: {session.headers['User-Agent']}")
+
+        response = session.get(tidy_url, timeout=10)
         soup = BeautifulSoup(response.text, 'html.parser')
 
-        # Scrape price
-        price_tag = soup.find('span', {'class': 'a-offscreen'})
-        price_cleaned = 0.0
-        if price_tag:
-            price_text = price_tag.get_text().strip()
-            logging.info(f"Price text found: {price_text}")
+        if looks_blocked(response, soup):
+            logging.warning("Amazon returned its bot-check page rather than the product")
+            result['message'] = ("Amazon didn't show the product page (it served its 'are you a robot?' "
+                                 "page instead). Try again in a minute, or use the 'Add to Vine Orders' "
+                                 "browser button while you're on the Amazon page.")
+            return result
 
-            price_cleaned = re.sub(r'[^\d.]', '', price_text)
-            price_cleaned = float(price_cleaned) if price_cleaned else 0.0
-            logging.info(f"Cleaned price: {price_cleaned}")
+        if response.status_code == 404:
+            result['message'] = "Amazon says that page doesn't exist - please check the URL."
+            return result
+        response.raise_for_status()
 
-        # Scrape product description
-        title_tag = soup.find('span', {'id': 'productTitle'})
-        description = title_tag.get_text().strip() if title_tag else ""
-        logging.info(f"Product description found: {description}")
+        result['description'] = find_title(soup)
+        result['price'] = find_price(soup)
+        logging.info(f"Description: {result['description']!r}  Price: {result['price']}")
 
-        return {"price": price_cleaned, "description": description}
-    except Exception as e:
-        logging.error(f"Error scraping URL {url}: {e}")
-        return {"price": 0.0, "description": ""}
+        if not result['description']:
+            result['message'] = "Couldn't find the product details on that page."
+        elif result['price'] is None:
+            result['message'] = ("Found the product but not a price - Vine items often have no price "
+                                 "until they go on general sale, so you may need to enter it yourself.")
+        return result
+
+    except requests.RequestException as e:
+        logging.error(f"Error fetching URL {url}: {e}")
+        result['message'] = f"Couldn't reach Amazon ({e.__class__.__name__}). Please try again."
+        return result
+
+
+def find_existing_orders(asin, url):
+    """Return any orders already in the database for the same product."""
+    conn = get_db_connection()
+    if asin:
+        rows = conn.execute('SELECT id, date_ordered FROM orders WHERE url LIKE ? ORDER BY date_ordered DESC',
+                            (f'%{asin}%',)).fetchall()
+    else:
+        rows = conn.execute('SELECT id, date_ordered FROM orders WHERE url = ? ORDER BY date_ordered DESC',
+                            (url,)).fetchall()
+    conn.close()
+    return [{'id': row['id'], 'date_ordered': datetimeformat(row['date_ordered'])} for row in rows]
 
 
 @app.route('/fetch-product-info', methods=['POST'])
 def fetch_product_info():
-    data = request.get_json()
-    url = data.get('url', '')
+    data = request.get_json(silent=True) or {}
+    url = (data.get('url') or '').strip()
 
     if not url:
         logging.warning("No URL provided in request.")
-        return jsonify({"error": "Invalid URL"}), 400
+        return jsonify({"message": "Please paste a product URL first."}), 400
 
-    logging.info(f"Fetching product info for URL: {url}")
     product_info = scrape_price_and_description(url)
-
-    logging.info(f"Scraped product info: {product_info}")
+    product_info['existing'] = find_existing_orders(product_info['asin'], product_info['url'])
     return jsonify(product_info)
+
+
+# Check whether a product is already in the database (used after the browser button)
+@app.route('/check-existing')
+def check_existing():
+    url, asin = normalise_amazon_url(request.args.get('url', ''))
+    return jsonify({'existing': find_existing_orders(asin, url) if url else []})
+
+
+# The browser button ("bookmarklet").  When clicked on an Amazon product page it
+# reads the title and price straight from the page you are looking at - so
+# Amazon's bot checks never come into it - then opens this app with the
+# 'Add a New Order' form already filled in.  {app_url} is filled in when the
+# dashboard is shown.
+BOOKMARKLET_JS = """(function(){
+var d=document,q=function(s){return d.querySelector(s);};
+var t=q('#productTitle')||q('#ebooksProductTitle');
+var title=t?t.textContent.trim().replace(/\\s+/g,' '):d.title;
+var sels=['#corePriceDisplay_desktop_feature_div .priceToPay .a-offscreen','#corePriceDisplay_desktop_feature_div .a-price .a-offscreen','#corePrice_feature_div .a-price .a-offscreen','#corePrice_desktop .a-price .a-offscreen','#apex_desktop .a-price .a-offscreen','#kindle-price','#price_inside_buybox','#priceblock_ourprice','#price'];
+var price='';
+for(var i=0;i<sels.length&&!price;i++){var e=q(sels[i]);if(e&&e.textContent.trim()){price=e.textContent.trim();}}
+var a=q('#ASIN'),m=location.href.match(/\\/(?:dp|gp\\/product)\\/([A-Z0-9]{10})/i);
+var asin=a?a.value:(m?m[1]:'');
+var url=asin?location.origin+'/dp/'+asin:location.href;
+window.open('{app_url}?url='+encodeURIComponent(url)+'&description='+encodeURIComponent(title)+'&price='+encodeURIComponent(price),'_blank');
+})();"""
+
+
+def build_bookmarklet(app_url):
+    """Return the javascript: link for the browser button, pointing at this app."""
+    js = BOOKMARKLET_JS.replace('{app_url}', app_url)
+    js = ''.join(line.strip() for line in js.splitlines())
+    return 'javascript:' + quote(js, safe="(){}[]'=+:;,.!?/*&|<>-_~")
 
 
 # Function to get a database connection
@@ -223,7 +464,9 @@ def get_review_period_stats():
 
     # Calculate the review percentage
     review_percentage = (items_reviewed_review_period / items_ordered_review_period * 100) if items_ordered_review_period > 0 else 0
-    review_percentage_color = "green" if review_percentage >= 90 else "red"
+    # Same rule as the dashboard: at least 80 items ordered and 90% reviewed
+    meets_requirements = items_ordered_review_period >= 80 and review_percentage >= 90
+    review_percentage_color = "green" if meets_requirements else "red"
 
     return jsonify({
         'items_ordered_review_period': items_ordered_review_period,
@@ -332,8 +575,20 @@ def index():
     # Determine the colour for review percentage (green if meets requirements, red if not)
     review_percentage_color = "green" if meets_requirements else "red"
 
+    # Values passed in the address bar by the browser button, used to
+    # pre-fill the 'Add a New Order' form
+    prefill_url, _ = normalise_amazon_url(request.args.get('url', ''))
+    prefill_price = parse_price(request.args.get('price', ''))
+    prefill = {
+        'url': prefill_url if request.args.get('url') else '',
+        'description': ' '.join(request.args.get('description', '').split()),
+        'price': f'{prefill_price:.2f}' if prefill_price else '',
+    }
+
     # Return the values to the template
     return render_template('index.html',
+                           prefill=prefill,
+                           bookmarklet=build_bookmarklet(request.host_url),
                            total_orders=total_orders,
                            items_ordered_current_year=items_ordered_current_year,
                            total_value=total_value,
@@ -353,10 +608,17 @@ def index():
 # Add a new order
 @app.route('/add', methods=['POST'])
 def add_order():
-    url = request.form['url']
-    description = request.form['description']
-    price = float(request.form['price'])
+    url, _ = normalise_amazon_url(request.form['url'])
+    description = request.form['description'].strip()
     date_ordered = request.form['date_ordered']
+
+    # The price is optional - Vine items often have no price on Amazon yet.
+    # A blank price is stored as NULL and shows as 'N/A' until you add it.
+    price_text = request.form.get('price', '').strip()
+    try:
+        price = float(price_text) if price_text else None
+    except ValueError:
+        return "Error: The price must be a number (or left blank).", 400
 
     # Review due date is 30 days after the order date
     review_due_date = (datetime.strptime(date_ordered, '%Y-%m-%d') + timedelta(days=30)).strftime('%Y-%m-%d')
