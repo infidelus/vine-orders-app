@@ -1375,13 +1375,57 @@ body {
     width: calc(100% - 160px);
 }
 
-/* --- Backup status on the statistics page --- */
-.backup-info {
-    margin: 20px 0 10px;
-    font-size: 14px;
-    opacity: 0.85;
+/* --- Settings page --- */
+.settings-section {
+    margin: 20px 0;
+    padding: 15px 20px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
 }
 
-.backup-info code {
-    font-size: 13px;
+.settings-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.settings-row label {
+    min-width: 150px;
+}
+
+.settings-wide {
+    flex: 1;
+    max-width: 450px;
+    padding: 5px;
+}
+
+.settings-help,
+.settings-note {
+    margin-top: 15px;
+    font-size: 14px;
+}
+
+.settings-help summary {
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.settings-buttons {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-top: 15px;
+}
+
+.settings-buttons form {
+    margin: 0;
+}
+
+.backups-table {
+    max-width: 600px;
+}
+
+.dark-mode .settings-section {
+    border-color: #555;
 }

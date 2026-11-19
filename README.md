@@ -18,7 +18,7 @@ This Flask application was originally written almost entirely by ChatGPT. Other 
 - **CSV exports** of all orders, or just your sold items with net amounts worked out
 - **Search and filters** with pagination and a page-jump box for large collections
 - **CSV import** for your Amazon data export, plus a separate script to bulk-import prices
-- **Automatic daily backups** of the database, plus a button to download a copy whenever you like
+- **Optional daily backups** to a folder of your choice, plus a button to download a copy of the database whenever you like
 - **Dark mode**, because of course
 
 A few images of the app:
@@ -44,17 +44,13 @@ If you are running the app on your local machine then it will be available in yo
 
 Change the port number as required, save the file and then restart the app and adjust the browser URL port.
 
-## Keeping Your Data Safe (Docker / Unraid)
+## Backups
 
-By default the database (vine_orders.db) is kept next to app.py, as it always has been. If you run the app in Docker and that folder isn't mapped to your server's storage, **rebuilding the image can wipe your orders**. To keep the database outside the container:
+The database (vine_orders.db) is created in the app's own folder the first time the app starts. If you run the app in Docker, make sure that folder is mapped to your server's storage (on Unraid, the appdata folder), otherwise rebuilding the image could lose your orders.
 
-1. In the container settings (on Unraid: edit the container, then "Add another Path, Port, Variable..."), add a **Path** with container path `/data` and host path such as `/mnt/user/appdata/vine-orders`.
-2. Add a **Variable** called `VINE_DATABASE` with the value `/data/vine_orders.db`.
-3. Start the container. On first start the app copies your existing database to the new location automatically (it only does this if there isn't already a database there), and the log shows where the database and backups are being kept.
+Automatic backups are optional and switched off to start with. Press 'Settings' on the dashboard to switch them on, choose the backup folder and how many backups to keep (14 to start with). Once a day the app then saves a copy of the database named by date (e.g. `vine_orders-2026-11-19.db`) and deletes the oldest copies beyond the number you're keeping. The Settings page lists your backups and has buttons to make a backup immediately or download a copy of the database.
 
-### Backups
-
-Once a day the app saves a copy of the database in a `backups` folder next to it, named by date (e.g. `vine_orders-2026-11-19.db`), and keeps the most recent 14. To keep a different number, set the `VINE_BACKUP_KEEP` variable; to put backups somewhere else, set `VINE_BACKUP_DIR`. The Statistics page shows when the last backup was made, and its 'Download Database' button gives you a copy straight away.
+The backup folder can be `backups` (a folder inside the app's folder) or any full path the app can write to. In Docker the app can only see folders the container has been given, so to back up to a different share, add a Path to the container (for example container path `/backups`, host path `/mnt/user/backups/vine-orders`) and enter `/backups` as the backup folder.
 
 To restore a backup, stop the app, replace vine_orders.db with the backup file (renamed to vine_orders.db) and start it again.
 

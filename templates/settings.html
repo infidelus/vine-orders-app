@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+</head>
+<body>
+    <div class="page-wrapper">
+
+        <!-- Dark Mode Toggle -->
+        <div class="dark-mode-toggle">
+            <label for="dark-mode-checkbox">Dark Mode</label>
+            <input type="checkbox" id="dark-mode-checkbox" onclick="toggleDarkMode()">
+        </div>
+
+        <h1 class="banner-heading">Settings</h1>
+
+        <!-- Messages after saving -->
+        {% if error %}
+            <div class="find-status find-status-error">{{ error }}</div>
+        {% elif message %}
+            <div class="find-status find-status-info">{{ message }}</div>
+        {% endif %}
+
+        <!-- Backup options -->
+        <div class="settings-section">
+            <h2>Automatic Backups</h2>
+            <p>
+                When switched on, the app saves a copy of your database once a day, named by
+                date (e.g. <code>vine_orders-2026-11-19.db</code>), and deletes the oldest
+                copies once there are more than the number you choose to keep.
+            </p>
+
+            <form method="POST" action="{{ url_for('settings') }}">
+                <div class="settings-row">
+                    <label for="backup_enabled">Daily backups:</label>
+                    <input type="checkbox" id="backup_enabled" name="backup_enabled"
+                           {% if backup_enabled %}checked{% endif %}>
+                </div>
+                <div class="settings-row">
+                    <label for="backup_dir">Backup folder:</label>
+                    <input type="text" id="backup_dir" name="backup_dir" value="{{ backup_dir }}" class="settings-wide">
+                </div>
+                <div class="settings-row">
+                    <label for="backup_keep">Backups to keep:</label>
+                    <input type="number" id="backup_keep" name="backup_keep" value="{{ backup_keep }}" min="1" step="1">
+                </div>
+                <button type="submit" class="small-button">Save Settings</button>
+            </form>
+
+            <details class="settings-help">
+                <summary>Choosing a backup folder</summary>
+                <p>
+                    Leave it as <code>backups</code> to keep backups in a folder inside the app's
+                    own folder. Any full path can be used instead, as long as the app can write to it.
+                    The app creates the folder if it doesn't exist and tells you if it can't use it.
+                </p>
+                <p>
+                    <strong>Running in Docker (e.g. on Unraid):</strong> the app can only see folders
+                    the container has been given. To back up somewhere else, such as a different share,
+                    edit the container and add a <em>Path</em>, for example container path
+                    <code>/backups</code> and host path <code>/mnt/user/backups/vine-orders</code>,
+                    then enter <code>/backups</code> here.
+                </p>
+            </details>
+        </div>
+
+        <!-- Existing backups -->
+        <div class="settings-section">
+            <h2>Backups</h2>
+            <p>Saved in: <code>{{ backup_dir_full }}</code></p>
+
+            {% if backups %}
+                <table class="orders-table backups-table">
+                    <thead>
+                        <tr><th>Date</th><th>File</th><th>Size</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for backup in backups %}
+                            <tr><td>{{ backup.date }}</td><td>{{ backup.name }}</td><td>{{ backup.size }}</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p>No backups yet.</p>
+            {% endif %}
+
+            <div class="settings-buttons">
+                <form method="POST" action="{{ url_for('backup_now') }}">
+                    <button type="submit" class="small-button">Back Up Now</button>
+                </form>
+                <a href="{{ url_for('export_database') }}" class="small-button">Download a Copy</a>
+            </div>
+
+            <p class="settings-note">
+                To restore a backup, stop the app, replace <code>vine_orders.db</code> in the app's
+                folder with the backup file (renamed to <code>vine_orders.db</code>) and start it again.
+            </p>
+        </div>
+
+        <div class="bottom-buttons">
+            <a href="{{ url_for('index') }}" class="button-link">Back to Dashboard</a>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>

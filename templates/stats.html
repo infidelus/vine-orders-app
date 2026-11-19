@@ -95,15 +95,6 @@
         </div>
         {% endif %}
 
-        <!-- Backup status -->
-        <div class="backup-info">
-            {% if latest_backup %}
-                Automatic backups: last one made {{ latest_backup }} ({{ backup_count }} kept in <code>{{ backup_dir }}</code>).
-            {% else %}
-                Automatic backups: none made yet - the first one is made shortly after the app starts.
-            {% endif %}
-        </div>
-
         <!-- Exports and navigation -->
         <div class="bottom-buttons">
             <div class="left-buttons">

@@ -6,7 +6,6 @@ import logging
 import requests
 import sqlite3
 import os
-import shutil
 import threading
 import time
 from urllib.parse import urlparse, quote
@@ -20,21 +19,12 @@ app = Flask(__name__)
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 
-# Where the database is kept.  By default it's vine_orders.db next to app.py,
-# as it always has been.  In Docker, set the VINE_DATABASE variable to a path in
-# a mapped folder (e.g. /data/vine_orders.db) so rebuilding the image can't
-# lose your data - see the README.
-DEFAULT_DATABASE = 'vine_orders.db'
-DATABASE = os.environ.get('VINE_DATABASE', DEFAULT_DATABASE)
+DATABASE = 'vine_orders.db'
 
-# Automatic daily backups go in a 'backups' folder next to the database,
-# keeping the most recent VINE_BACKUP_KEEP copies (14 unless set otherwise)
-BACKUP_DIR = os.environ.get('VINE_BACKUP_DIR',
-                            os.path.join(os.path.dirname(os.path.abspath(DATABASE)), 'backups'))
-try:
-    BACKUP_KEEP = max(1, int(os.environ.get('VINE_BACKUP_KEEP', '14')))
-except ValueError:
-    BACKUP_KEEP = 14
+# Backups are optional and switched on from the Settings page.  These are the
+# starting values until you change them there.
+DEFAULT_BACKUP_DIR = 'backups'   # A 'backups' folder inside the app's folder
+DEFAULT_BACKUP_KEEP = 14
 
 # Vine items become legally yours six months after the review date
 OWNERSHIP_DAYS = 180
@@ -407,63 +397,100 @@ def datetimeformat(value, days=0, format='%d/%m/%Y'):
     return value  # In case value is None, return it unchanged
 
 
-def prepare_database_location():
+# --- Settings (stored in the database's 'settings' table) ---
+
+def get_setting(key, default=None):
+    """Read one setting, or return the default if it hasn't been set."""
+    conn = get_db_connection()
+    row = conn.execute('SELECT value FROM settings WHERE key = ?', (key,)).fetchone()
+    conn.close()
+    return row['value'] if row else default
+
+
+def set_setting(key, value):
+    conn = get_db_connection()
+    conn.execute('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', (key, str(value)))
+    conn.commit()
+    conn.close()
+
+
+def backup_settings():
+    """Return (enabled, folder, number_to_keep) from the saved settings."""
+    enabled = get_setting('backup_enabled', '0') == '1'
+    folder = get_setting('backup_dir', DEFAULT_BACKUP_DIR)
+    try:
+        keep = max(1, int(get_setting('backup_keep', DEFAULT_BACKUP_KEEP)))
+    except ValueError:
+        keep = DEFAULT_BACKUP_KEEP
+    return enabled, os.path.abspath(folder), keep
+
+
+def check_backup_folder(folder):
     """
-    Make sure the database's folder exists.  If VINE_DATABASE points somewhere
-    new and there's no database there yet, copy the existing one across so
-    nothing is lost when switching over.
+    Make sure a backup folder exists and can be written to.
+    Returns an error message, or None if all is well.
     """
-    folder = os.path.dirname(os.path.abspath(DATABASE))
-    os.makedirs(folder, exist_ok=True)
-
-    old_database = os.path.abspath(DEFAULT_DATABASE)
-    if (not os.path.exists(DATABASE) and os.path.exists(old_database)
-            and os.path.abspath(DATABASE) != old_database):
-        shutil.copy2(old_database, DATABASE)
-        logging.info(f"Copied the existing database from {old_database} to {os.path.abspath(DATABASE)}")
-
-    logging.info(f"Using database: {os.path.abspath(DATABASE)}")
-    logging.info(f"Backups folder: {os.path.abspath(BACKUP_DIR)} (keeping {BACKUP_KEEP})")
+    try:
+        os.makedirs(folder, exist_ok=True)
+        test_file = os.path.join(folder, '.vine_write_test')
+        with open(test_file, 'w') as f:
+            f.write('test')
+        os.remove(test_file)
+    except OSError as e:
+        return f"Can't use that folder: {e.strerror or e}"
+    return None
 
 
-def list_backups():
-    """Return the backup files, newest first."""
-    if not os.path.isdir(BACKUP_DIR):
+# --- Backups ---
+
+def list_backups(folder):
+    """Return the backup files in a folder, newest first."""
+    if not os.path.isdir(folder):
         return []
-    names = [name for name in os.listdir(BACKUP_DIR)
+    names = [name for name in os.listdir(folder)
              if name.startswith('vine_orders-') and name.endswith('.db')]
     return sorted(names, reverse=True)
 
 
-def backup_database():
+def copy_database(target_path):
     """
-    Make today's backup if there isn't one already, then delete the oldest
-    backups beyond BACKUP_KEEP.  SQLite's own backup method is used, so the
-    copy is safe even if the app is in the middle of saving something.
+    Copy the database to target_path using SQLite's own backup method, which
+    is safe even if the app is in the middle of saving something.  It writes
+    to a temporary name first, so a half-finished copy is never mistaken for
+    a good one.
     """
-    if not os.path.exists(DATABASE):
+    temp_path = target_path + '.tmp'
+    source = sqlite3.connect(DATABASE)
+    target = sqlite3.connect(temp_path)
+    with target:
+        source.backup(target)
+    target.close()
+    source.close()
+    os.replace(temp_path, target_path)
+
+
+def backup_database(force=False):
+    """
+    Make today's backup (if backups are switched on and there isn't one
+    already), then delete the oldest backups beyond the number to keep.
+    force=True makes a backup now even if switched off or one exists today.
+    Returns the backup's file name, or None if nothing was done.
+    """
+    enabled, folder, keep = backup_settings()
+    if not (enabled or force) or not os.path.exists(DATABASE):
         return None
 
-    os.makedirs(BACKUP_DIR, exist_ok=True)
+    os.makedirs(folder, exist_ok=True)
     backup_name = f"vine_orders-{datetime.now().strftime('%Y-%m-%d')}.db"
-    backup_path = os.path.join(BACKUP_DIR, backup_name)
+    backup_path = os.path.join(folder, backup_name)
 
-    if not os.path.exists(backup_path):
-        source = sqlite3.connect(DATABASE)
-        # Write to a temporary name first, so a half-finished backup is never
-        # mistaken for a good one
-        temp_path = backup_path + '.tmp'
-        target = sqlite3.connect(temp_path)
-        with target:
-            source.backup(target)
-        target.close()
-        source.close()
-        os.replace(temp_path, backup_path)
+    if force or not os.path.exists(backup_path):
+        copy_database(backup_path)
         logging.info(f"Backup saved: {backup_path}")
 
     # Remove the oldest backups beyond the number we're keeping
-    for old_name in list_backups()[BACKUP_KEEP:]:
-        os.remove(os.path.join(BACKUP_DIR, old_name))
+    for old_name in list_backups(folder)[keep:]:
+        os.remove(os.path.join(folder, old_name))
         logging.info(f"Old backup removed: {old_name}")
 
     return backup_name
@@ -495,6 +522,14 @@ def init_db():
             review_due_date TEXT,
             review_date TEXT,
             review TEXT
+        )
+    ''')
+
+    # Create the settings table (used for the backup options)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT
         )
     ''')
 
@@ -549,8 +584,8 @@ def init_db():
     conn.close()
 
 
-# Initialise the database, then start the automatic daily backups
-prepare_database_location()
+# Initialise the database, then start the daily backup checks (which do
+# nothing unless backups are switched on in Settings)
 init_db()
 threading.Thread(target=backup_loop, daemon=True, name='daily-backup').start()
 
@@ -1371,18 +1406,7 @@ def stats():
 
     conn.close()
 
-    # Backup details for the bottom of the page
-    backups = list_backups()
-    if backups:
-        latest = datetime.strptime(backups[0][len('vine_orders-'):-len('.db')], '%Y-%m-%d')
-        latest_backup = latest.strftime('%d/%m/%Y')
-    else:
-        latest_backup = None
-
     return render_template('stats.html',
-                           latest_backup=latest_backup,
-                           backup_count=len(backups),
-                           backup_dir=os.path.abspath(BACKUP_DIR),
                            total_orders=total_orders,
                            total_value=f"{(total_value or 0):.2f}",
                            items_sold=items_sold,
@@ -1458,18 +1482,78 @@ def export_sales_csv():
     )
 
 
+# Settings page (currently the backup options)
+@app.route('/settings', methods=['GET', 'POST'])
+def settings():
+    message = None
+    error = None
+
+    if request.method == 'POST':
+        enabled = request.form.get('backup_enabled') == 'on'
+        folder = request.form.get('backup_dir', '').strip() or DEFAULT_BACKUP_DIR
+        keep_text = request.form.get('backup_keep', '').strip()
+
+        try:
+            keep = int(keep_text)
+            if keep < 1:
+                raise ValueError
+        except ValueError:
+            error = "The number of backups to keep must be a whole number of at least 1."
+
+        # Only check the folder if backups are being switched on
+        if not error and enabled:
+            error = check_backup_folder(os.path.abspath(folder))
+
+        if not error:
+            set_setting('backup_enabled', '1' if enabled else '0')
+            set_setting('backup_dir', folder)
+            set_setting('backup_keep', keep)
+            message = "Settings saved."
+            if enabled:
+                # Make today's backup straight away, so you can see it worked
+                try:
+                    backup_database()
+                    message = "Settings saved, and today's backup is in place."
+                except Exception as e:
+                    error = f"Settings saved, but the backup failed: {e}"
+
+    enabled, folder, keep = backup_settings()
+    backups = []
+    for name in list_backups(folder):
+        path = os.path.join(folder, name)
+        backups.append({
+            'name': name,
+            'date': datetime.strptime(name[len('vine_orders-'):-len('.db')], '%Y-%m-%d').strftime('%d/%m/%Y'),
+            'size': f"{os.path.getsize(path) / 1024:.0f} KB",
+        })
+
+    return render_template('settings.html',
+                           message=message or request.args.get('message'),
+                           error=error,
+                           backup_enabled=enabled,
+                           backup_dir=get_setting('backup_dir', DEFAULT_BACKUP_DIR),
+                           backup_dir_full=folder,
+                           backup_keep=keep,
+                           backups=backups)
+
+
+# Make a backup immediately (from the Settings page)
+@app.route('/settings/backup_now', methods=['POST'])
+def backup_now():
+    _, folder, _ = backup_settings()
+    error = check_backup_folder(folder)
+    if error:
+        return redirect(url_for('settings', message=error))
+    name = backup_database(force=True)
+    return redirect(url_for('settings', message=f"Backup saved as {name}."))
+
+
 # Download a copy of the whole database (a manual backup)
 @app.route('/export/database')
 def export_database():
     # Make a consistent copy first, rather than sending the live file
-    temp_path = os.path.join(BACKUP_DIR, 'download.tmp')
-    os.makedirs(BACKUP_DIR, exist_ok=True)
-    source = sqlite3.connect(DATABASE)
-    target = sqlite3.connect(temp_path)
-    with target:
-        source.backup(target)
-    target.close()
-    source.close()
+    temp_path = os.path.abspath('vine_orders-download.db')
+    copy_database(temp_path)
     with open(temp_path, 'rb') as f:
         data = f.read()
     os.remove(temp_path)
