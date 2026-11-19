@@ -112,6 +112,17 @@
                 </div>
                 <!-- Messages from the Find button (e.g. 'no price found' or 'already ordered') -->
                 <div id="find-status" class="find-status" role="status" hidden></div>
+                <!-- Small product picture: only its Amazon address is saved -->
+                <input type="hidden" id="image_url" name="image_url" value="{{ prefill.image_url }}">
+                <div class="form-row picture-row" id="picture-row" {% if not prefill.image_url %}hidden{% endif %}>
+                    <label>Picture:</label>
+                    <div class="picture-preview-holder">
+                        <img id="picture-preview" class="picture-preview" alt="Product picture"
+                             src="{{ prefill.image_url or url_for('static', filename='img/no-image.svg') }}"
+                             referrerpolicy="no-referrer"
+                             onerror="this.onerror=null; this.src='{{ url_for('static', filename='img/no-image.svg') }}';">
+                    </div>
+                </div>
                 <div class="form-row">
                     <label for="description">Product Description:</label>
                     <input type="text" id="description" name="description" class="full-width-field" required
@@ -147,7 +158,9 @@
                 </p>
                 <p>
                     Then, when you're looking at a product on Amazon, click it in your bookmarks bar.
-                    This app opens in a new tab with the description and price already filled in.
+                    This app opens in a new tab with the description, price and picture already filled in.
+                    If it's something you've already got, you'll be offered a button to add the
+                    picture to your existing order - handy for adding pictures to older orders.
                     Because it reads the page you're already looking at, Amazon's "are you a robot?"
                     checks don't get in the way. It's much more reliable than the Find button.
                 </p>
@@ -182,12 +195,51 @@
             box.hidden = false;
         }
 
-        // Warn if this product is already in the database
+        // Show (or hide) the small picture on the form
+        function setPicture(imageUrl) {
+            document.getElementById("image_url").value = imageUrl || "";
+            document.getElementById("picture-row").hidden = !imageUrl;
+            if (imageUrl) document.getElementById("picture-preview").src = imageUrl;
+        }
+
+        // Warn if this product is already in the database.  If we have a
+        // picture, offer to add it to the existing order(s).
         function existingOrdersMessage(existing) {
             if (!existing || existing.length === 0) return "";
-            const links = existing.map(o =>
-                `<a href="/orders/${o.id}" target="_blank">ordered ${o.date_ordered}</a>`).join(", ");
-            return `You already have this item (${links}).`;
+            const imageUrl = document.getElementById("image_url").value;
+            const parts = existing.map(o => {
+                let part = `<a href="/orders/${o.id}" target="_blank">ordered ${o.date_ordered}</a>`;
+                if (imageUrl) {
+                    const label = o.has_image ? "Replace its picture" : "Add picture to existing order";
+                    part += ` <button type="button" class="small-button picture-button"
+                                onclick="addPictureToOrder(${o.id}, this)">${label}</button>`;
+                }
+                return part;
+            });
+            return `You already have this item: ${parts.join("; ")}`;
+        }
+
+        // Save the picture shown on the form to an order that's already in the database
+        async function addPictureToOrder(orderId, button) {
+            button.disabled = true;
+            try {
+                const response = await fetch(`/orders/${orderId}/set_image`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: new URLSearchParams({ image_url: document.getElementById("image_url").value }),
+                });
+                const data = await response.json();
+                if (data.success) {
+                    button.outerHTML = "<strong>Picture saved ✓</strong>";
+                } else {
+                    alert("Couldn't save the picture: " + data.error);
+                    button.disabled = false;
+                }
+            } catch (error) {
+                console.error("Error:", error);
+                alert("Couldn't save the picture - is the app still running?");
+                button.disabled = false;
+            }
         }
 
         async function fetchProductData() {
@@ -204,6 +256,7 @@
             findButton.disabled = true;
             findButton.textContent = "Finding…";
             showFindStatus("Looking up the product on Amazon…", "info");
+            setPicture("");  // Clear any picture from a previous look-up
 
             try {
                 const response = await fetch("/fetch-product-info", {
@@ -219,6 +272,7 @@
                 // Only fill in what was found, so nothing you typed is wiped out
                 if (data.description) document.getElementById("description").value = data.description;
                 if (data.price) document.getElementById("price").value = Number(data.price).toFixed(2);
+                if (data.image_url) setPicture(data.image_url);
 
                 const messages = [];
                 const duplicate = existingOrdersMessage(data.existing);

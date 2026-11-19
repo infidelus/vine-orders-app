@@ -187,6 +187,48 @@ def find_price(soup):
     return None
 
 
+# Pictures are stored as the address of a small version of Amazon's own image
+# (nothing is downloaded or saved on the server).  Amazon resizes its images on
+# request using a code in the address, e.g. ._AC_SL160_ = at most 160 pixels.
+THUMBNAIL_SIZE_CODE = '._AC_SL160_'
+AMAZON_IMAGE_PATTERN = re.compile(
+    r'^https://(?:m\.media-amazon\.com|images-[a-z]+\.ssl-images-amazon\.com|[a-z0-9-]+\.media-amazon\.com)'
+    r'(/images/I/[^./?#]+)(?:\.[^/?#]*?)?\.(jpg|jpeg|png|webp|gif)(?:[?#].*)?$', re.I)
+
+
+def thumbnail_url(image_url):
+    """
+    Turn any Amazon product image address into the address of a small
+    (160 pixel) version.  Returns None if it isn't an Amazon product image,
+    so only Amazon picture addresses are ever stored.
+    """
+    match = AMAZON_IMAGE_PATTERN.match((image_url or '').strip())
+    if not match:
+        return None
+    return f"https://m.media-amazon.com{match.group(1)}{THUMBNAIL_SIZE_CODE}.{match.group(2).lower()}"
+
+
+def find_image(soup):
+    """Find the main product picture and return the small version's address."""
+    for element_id in ('landingImage', 'imgBlkFront', 'ebooksImgBlkFront', 'main-image'):
+        tag = soup.find(id=element_id)
+        if tag:
+            for attribute in ('data-old-hires', 'src'):
+                small = thumbnail_url(tag.get(attribute))
+                if small:
+                    return small
+            # Some pages list the image sizes in a data attribute instead
+            for candidate in re.findall(r'"(https://[^"]+)"', tag.get('data-a-dynamic-image', '')):
+                small = thumbnail_url(candidate)
+                if small:
+                    return small
+
+    meta = soup.find('meta', attrs={'property': 'og:image'})
+    if meta:
+        return thumbnail_url(meta.get('content'))
+    return None
+
+
 def find_title(soup):
     """Find the product title, falling back to the page's meta data."""
     for element_id in ('productTitle', 'ebooksProductTitle', 'title'):
@@ -239,7 +281,7 @@ def scrape_price_and_description(url):
     session.headers.update(BASE_HEADERS)
     session.headers['User-Agent'] = random.choice(USER_AGENTS)
 
-    result = {'description': '', 'price': None, 'url': url, 'asin': None, 'message': ''}
+    result = {'description': '', 'price': None, 'image_url': None, 'url': url, 'asin': None, 'message': ''}
 
     try:
         # Follow short links first so we can find the product code
@@ -269,6 +311,7 @@ def scrape_price_and_description(url):
 
         result['description'] = find_title(soup)
         result['price'] = find_price(soup)
+        result['image_url'] = find_image(soup)
         logging.info(f"Description: {result['description']!r}  Price: {result['price']}")
 
         if not result['description']:
@@ -288,13 +331,14 @@ def find_existing_orders(asin, url):
     """Return any orders already in the database for the same product."""
     conn = get_db_connection()
     if asin:
-        rows = conn.execute('SELECT id, date_ordered FROM orders WHERE url LIKE ? ORDER BY date_ordered DESC',
+        rows = conn.execute('SELECT id, date_ordered, image_url FROM orders WHERE url LIKE ? ORDER BY date_ordered DESC',
                             (f'%{asin}%',)).fetchall()
     else:
-        rows = conn.execute('SELECT id, date_ordered FROM orders WHERE url = ? ORDER BY date_ordered DESC',
+        rows = conn.execute('SELECT id, date_ordered, image_url FROM orders WHERE url = ? ORDER BY date_ordered DESC',
                             (url,)).fetchall()
     conn.close()
-    return [{'id': row['id'], 'date_ordered': datetimeformat(row['date_ordered'])} for row in rows]
+    return [{'id': row['id'], 'date_ordered': datetimeformat(row['date_ordered']),
+             'has_image': bool(row['image_url'])} for row in rows]
 
 
 @app.route('/fetch-product-info', methods=['POST'])
@@ -319,7 +363,7 @@ def check_existing():
 
 
 # The browser button ("bookmarklet").  When clicked on an Amazon product page it
-# reads the title and price straight from the page you are looking at - so
+# reads the title, price and picture straight from the page you are looking at - so
 # Amazon's bot checks never come into it - then opens this app with the
 # 'Add a New Order' form already filled in.  {app_url} is filled in when the
 # dashboard is shown.
@@ -333,7 +377,9 @@ for(var i=0;i<sels.length&&!price;i++){var e=q(sels[i]);if(e&&e.textContent.trim
 var a=q('#ASIN'),m=location.href.match(/\\/(?:dp|gp\\/product)\\/([A-Z0-9]{10})/i);
 var asin=a?a.value:(m?m[1]:'');
 var url=asin?location.origin+'/dp/'+asin:location.href;
-window.open('{app_url}?url='+encodeURIComponent(url)+'&description='+encodeURIComponent(title)+'&price='+encodeURIComponent(price),'_blank');
+var im=q('#landingImage')||q('#imgBlkFront')||q('#ebooksImgBlkFront');
+var image=im?(im.getAttribute('data-old-hires')||im.src||''):'';
+window.open('{app_url}?url='+encodeURIComponent(url)+'&description='+encodeURIComponent(title)+'&price='+encodeURIComponent(price)+'&image='+encodeURIComponent(image),'_blank');
 })();"""
 
 
@@ -543,17 +589,20 @@ def init_db():
     ''')
 
     # --- Migrations for existing databases ---
-    # Add the sales tracking columns if they are not already present
+    # Add any columns from newer versions that are not already present
     cursor.execute('PRAGMA table_info(orders)')
     existing_columns = {row['name'] for row in cursor.fetchall()}
 
-    sales_columns = {
+    new_columns = {
+        # Sales tracking (added in v2.0)
         'date_sold': 'TEXT',
         'sale_price': 'REAL',
         'sale_platform': 'TEXT',
         'sale_fees': 'REAL',
+        # Address of a small product picture on Amazon (added in v2.2)
+        'image_url': 'TEXT',
     }
-    for column_name, column_type in sales_columns.items():
+    for column_name, column_type in new_columns.items():
         if column_name not in existing_columns:
             cursor.execute(f'ALTER TABLE orders ADD COLUMN {column_name} {column_type}')
             logging.info(f"Migration: added column '{column_name}' to orders table")
@@ -760,6 +809,7 @@ def index():
         'url': prefill_url if request.args.get('url') else '',
         'description': ' '.join(request.args.get('description', '').split()),
         'price': f'{prefill_price:.2f}' if prefill_price else '',
+        'image_url': thumbnail_url(request.args.get('image', '')) or '',
     }
 
     # Return the values to the template
@@ -791,6 +841,7 @@ def add_order():
     url, _ = normalise_amazon_url(request.form['url'])
     description = request.form['description'].strip()
     date_ordered = request.form['date_ordered']
+    image_url = thumbnail_url(request.form.get('image_url', ''))
 
     # The price is optional - Vine items often have no price on Amazon yet.
     # A blank price is stored as NULL and shows as 'N/A' until you add it.
@@ -811,9 +862,9 @@ def add_order():
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO orders (url, description, price, date_ordered, review_due_date, review_date)
-        VALUES (?, ?, ?, ?, ?, ?)
-    ''', (url, description, price, date_ordered, review_due_date, review_date))
+        INSERT INTO orders (url, description, price, date_ordered, review_due_date, review_date, image_url)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    ''', (url, description, price, date_ordered, review_due_date, review_date, image_url))
     conn.commit()
     conn.close()
 
@@ -871,7 +922,7 @@ def orders():
         cursor.execute(
             f'''
             SELECT id, description, price, date_ordered, review_date,
-                   date_sold, sale_price, sale_platform
+                   date_sold, sale_price, sale_platform, image_url
             FROM orders
             {where_sql}
             ORDER BY {order_by}
@@ -951,6 +1002,7 @@ def orders():
             'date_sold': datetime.strptime(order['date_sold'], '%Y-%m-%d').strftime('%d/%m/%Y') if order['date_sold'] else None,
             'sale_price': formatted_sale_price,
             'sale_platform': order['sale_platform'] or '—',
+            'image_url': order['image_url'],
         }
         formatted_orders.append(formatted_order)
 
@@ -1078,6 +1130,36 @@ def update_details(order_id):
     conn.commit()
     conn.close()
 
+    return redirect(url_for('view_order', order_id=order_id))
+
+
+# Add (or replace) the picture for an existing order.  Used by the
+# 'Add picture to existing order' button after using the browser button.
+@app.route('/orders/<int:order_id>/set_image', methods=['POST'])
+def set_image(order_id):
+    image_url = thumbnail_url(request.form.get('image_url', ''))
+    if not image_url:
+        return jsonify({"success": False, "error": "That isn't an Amazon product picture."}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('UPDATE orders SET image_url = ? WHERE id = ?', (image_url, order_id))
+    conn.commit()
+    updated = cursor.rowcount
+    conn.close()
+
+    if not updated:
+        return jsonify({"success": False, "error": "Order not found."}), 404
+    return jsonify({"success": True, "image_url": image_url})
+
+
+# Remove the picture from an order (from the order page)
+@app.route('/orders/<int:order_id>/remove_image', methods=['POST'])
+def remove_image(order_id):
+    conn = get_db_connection()
+    conn.execute('UPDATE orders SET image_url = NULL WHERE id = ?', (order_id,))
+    conn.commit()
+    conn.close()
     return redirect(url_for('view_order', order_id=order_id))
 
 
@@ -1442,7 +1524,7 @@ def export_orders_csv():
     cursor = conn.cursor()
     cursor.execute('''
         SELECT description, url, price, date_ordered, review_date,
-               date_sold, sale_platform, sale_price, sale_fees
+               date_sold, sale_platform, sale_price, sale_fees, image_url
         FROM orders
         ORDER BY date_ordered
     ''')
@@ -1451,7 +1533,7 @@ def export_orders_csv():
 
     return csv_response(
         ['description', 'url', 'price', 'date_ordered', 'review_date',
-         'date_sold', 'sale_platform', 'sale_price', 'sale_fees'],
+         'date_sold', 'sale_platform', 'sale_price', 'sale_fees', 'image_url'],
         rows,
         'vine_orders.csv'
     )

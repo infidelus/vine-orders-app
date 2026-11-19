@@ -25,6 +25,24 @@
         <div class="container">
             <!-- Left Column: Order Details -->
             <div class="left-column">
+                <!-- Product picture (a small image loaded from Amazon; placeholder if none) -->
+                <div class="order-picture">
+                    <img class="order-picture-img" alt="Product picture" referrerpolicy="no-referrer"
+                         src="{{ order['image_url'] or url_for('static', filename='img/no-image.svg') }}"
+                         onerror="this.onerror=null; this.src='{{ url_for('static', filename='img/no-image.svg') }}';">
+                    {% if order['image_url'] %}
+                        <form method="POST" action="{{ url_for('remove_image', order_id=order['id']) }}"
+                              onsubmit="return confirm('Remove the picture from this order?');">
+                            <button type="submit" class="cancel-button">Remove Picture</button>
+                        </form>
+                    {% else %}
+                        <p class="order-picture-hint">
+                            No picture yet. To add one, open the product on Amazon and use the
+                            "Add to Vine Orders" browser button.
+                        </p>
+                    {% endif %}
+                </div>
+
                 <div id="details-display">
                     <p><strong>Description:</strong> {{ order['description'] }}</p>
                     <p><strong>Product URL:</strong> <a href="{{ order['url'] }}" target="_blank">{{ order['url'] }}</a></p>

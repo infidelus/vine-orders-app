@@ -12,6 +12,7 @@ This Flask application was originally written almost entirely by ChatGPT. Other 
 - **Review management** - write reviews in Markdown with a built-in editor, track review dates and due dates
 - **Review reminders** - the dashboard shows how many reviews are overdue or due in the next 7 days, overdue and due-soon orders are highlighted in the orders list, and there are filters for each
 - **Edit order details** - fix the description, URL or order date of any order
+- **Product pictures** - a small picture of each item in the orders list and on its page, using only a link to Amazon's own image (no pictures are stored on your server)
 - **Ownership tracking** - each item shows when it becomes legally yours (six months after the review date), with an "Items Legally Mine" filter
 - **Sales tracking** - mark items as sold with the date, sale price, platform and optional fees. The platform is free text with autocomplete from your previous entries, so it works with eBay, Vinted, Facebook Marketplace or anywhere else you sell. The dashboard shows items sold, total sales, net sales after fees and sales this year, and the orders page has a Sold Items filter
 - **Statistics page** with charts covering orders per month, orders and value per year, sales per month and sales by platform, plus a per-platform breakdown of gross, fees and net
@@ -69,6 +70,16 @@ First, download your data from Amazon. There should be a VineOrders.csv file, or
 ## Import Prices
 
 There is also a separate Python script to import prices (import_prices.py). This exists because when I started playing with the program I only had the Amazon data that I requested which, as Vine items are free, all shows £0.00. I was considering manually entering all the prices, and started to do so. I then got exceptionally bored and, as I had another CSV file that I had been using up to that point that contained most of the prices, decided to have a script written to match the URLs and import the relevant prices. It expects a prices.csv file with url and price columns in the app's root folder.
+
+## Product Pictures
+
+When you add an order with the browser button (or the Find button, when Amazon lets it through), the app picks up the product's main picture and shows a small preview on the form. Only the picture's address is saved - a short line of text pointing to a small (160 pixel) version of Amazon's own image - so pictures take up effectively no space and don't make backups any bigger. Small pictures appear in the orders list and a larger one on each order's page.
+
+If you're offline, or Amazon ever removes a picture, a grey placeholder is shown instead and everything else carries on working.
+
+To add pictures to orders you already have, open the product on Amazon and click the browser button. The app recognises that you already have the item and offers an 'Add picture to existing order' button. Each order's page also has a 'Remove Picture' button.
+
+If you set up the browser button before version 2.2, drag it to your bookmarks bar again, as the new version also sends the picture.
 
 ## Review Reminders
 
