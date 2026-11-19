@@ -159,8 +159,7 @@
                 <p>
                     Then, when you're looking at a product on Amazon, click it in your bookmarks bar.
                     This app opens in a new tab with the description, price and picture already filled in.
-                    If it's something you've already got, you'll be offered a button to add the
-                    picture to your existing order - handy for adding pictures to older orders.
+                    To add a picture to an order you already have, use 'Add Picture' on that order's page.
                     Because it reads the page you're already looking at, Amazon's "are you a robot?"
                     checks don't get in the way. It's much more reliable than the Find button.
                 </p>
@@ -206,45 +205,13 @@
         // last look-up), so Add Order can check before making a duplicate
         let knownExistingOrders = [];
 
-        // Warn if this product is already in the database.  If we have a
-        // picture, offer to add it to the existing order(s).
+        // Warn if this product is already in the database, with links to the order(s)
         function existingOrdersMessage(existing) {
             knownExistingOrders = existing || [];
             if (!existing || existing.length === 0) return "";
-            const imageUrl = document.getElementById("image_url").value;
-            const parts = existing.map(o => {
-                let part = `<a href="/orders/${o.id}" target="_blank">ordered ${o.date_ordered}</a>`;
-                if (imageUrl) {
-                    const label = o.has_image ? "Replace its picture" : "Add picture to existing order";
-                    part += ` <button type="button" class="small-button picture-button"
-                                onclick="addPictureToOrder(${o.id}, this)">${label}</button>`;
-                }
-                return part;
-            });
-            return `You already have this item: ${parts.join("; ")}`;
-        }
-
-        // Save the picture shown on the form to an order that's already in the database
-        async function addPictureToOrder(orderId, button) {
-            button.disabled = true;
-            try {
-                const response = await fetch(`/orders/${orderId}/set_image`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                    body: new URLSearchParams({ image_url: document.getElementById("image_url").value }),
-                });
-                const data = await response.json();
-                if (data.success) {
-                    button.outerHTML = "<strong>Picture saved ✓</strong>";
-                } else {
-                    alert("Couldn't save the picture: " + data.error);
-                    button.disabled = false;
-                }
-            } catch (error) {
-                console.error("Error:", error);
-                alert("Couldn't save the picture - is the app still running?");
-                button.disabled = false;
-            }
+            const links = existing.map(o =>
+                `<a href="/orders/${o.id}" target="_blank">ordered ${o.date_ordered}</a>`).join(", ");
+            return `You already have this item (${links}).`;
         }
 
         async function fetchProductData() {

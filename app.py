@@ -331,14 +331,13 @@ def find_existing_orders(asin, url):
     """Return any orders already in the database for the same product."""
     conn = get_db_connection()
     if asin:
-        rows = conn.execute('SELECT id, date_ordered, image_url FROM orders WHERE url LIKE ? ORDER BY date_ordered DESC',
+        rows = conn.execute('SELECT id, date_ordered FROM orders WHERE url LIKE ? ORDER BY date_ordered DESC',
                             (f'%{asin}%',)).fetchall()
     else:
-        rows = conn.execute('SELECT id, date_ordered, image_url FROM orders WHERE url = ? ORDER BY date_ordered DESC',
+        rows = conn.execute('SELECT id, date_ordered FROM orders WHERE url = ? ORDER BY date_ordered DESC',
                             (url,)).fetchall()
     conn.close()
-    return [{'id': row['id'], 'date_ordered': datetimeformat(row['date_ordered']),
-             'has_image': bool(row['image_url'])} for row in rows]
+    return [{'id': row['id'], 'date_ordered': datetimeformat(row['date_ordered'])} for row in rows]
 
 
 @app.route('/fetch-product-info', methods=['POST'])
@@ -377,16 +376,19 @@ for(var i=0;i<sels.length&&!price;i++){var e=q(sels[i]);if(e&&e.textContent.trim
 var a=q('#ASIN'),m=location.href.match(/\\/(?:dp|gp\\/product)\\/([A-Z0-9]{10})/i);
 var asin=a?a.value:(m?m[1]:'');
 var url=asin?location.origin+'/dp/'+asin:location.href;
-var image='',ims=['#landingImage','#imgBlkFront','#ebooksImgBlkFront','#imgTagWrapperId img','#main-image-container img','#main-image'];
-for(var j=0;j<ims.length&&!image;j++){var im=q(ims[j]);if(im){var s=im.getAttribute('data-old-hires')||im.getAttribute('src')||'';if(s.indexOf('http')===0){image=s;}}}
-if(!image){var og=q('meta[property="og:image"]');if(og){image=og.content||'';}}
+var image='',ok=function(s){return s&&s.indexOf('http')===0&&s.indexOf('/images/I/')>0;};
+var ims=d.querySelectorAll('#landingImage,#imgBlkFront,#ebooksImgBlkFront,#imgTagWrapperId img,#main-image-container img,#imageBlock img,#main-image');
+for(var j=0;j<ims.length&&!image;j++){var im=ims[j],c=[im.getAttribute('data-old-hires'),im.currentSrc,im.getAttribute('src')];
+try{c=c.concat(Object.keys(JSON.parse(im.getAttribute('data-a-dynamic-image')||'{}')));}catch(x){}
+for(var k=0;k<c.length&&!image;k++){if(ok(c[k])){image=c[k];}}}
+if(!image){var og=q('meta[property="og:image"]');if(og&&ok(og.content)){image=og.content;}}
 window.open('{app_url}?v={version}&url='+encodeURIComponent(url)+'&description='+encodeURIComponent(title)+'&price='+encodeURIComponent(price)+'&image='+encodeURIComponent(image),'_blank');
 })();"""
 
 
 # Bumped whenever the browser button's code changes, so the app can tell
 # when someone is still using an old copy in their bookmarks bar
-BOOKMARKLET_VERSION = '2'
+BOOKMARKLET_VERSION = '3'
 
 
 def build_bookmarklet(app_url):
@@ -1095,6 +1097,8 @@ def view_order(order_id):
                            review_due_status=review_due_status,
                            review_date=review_date,
                            platforms=platforms,
+                           picture_message=request.args.get('picture_message'),
+                           picture_error=request.args.get('picture_error'),
                            today=datetime.now().strftime('%Y-%m-%d'))
 
 
@@ -1141,24 +1145,53 @@ def update_details(order_id):
     return redirect(url_for('view_order', order_id=order_id))
 
 
-# Add (or replace) the picture for an existing order.  Used by the
-# 'Add picture to existing order' button after using the browser button.
-@app.route('/orders/<int:order_id>/set_image', methods=['POST'])
-def set_image(order_id):
-    image_url = thumbnail_url(request.form.get('image_url', ''))
-    if not image_url:
-        return jsonify({"success": False, "error": "That isn't an Amazon product picture."}), 400
-
+def save_order_image(order_id, image_url):
+    """Store a picture address against an order.  Returns False if there's no such order."""
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('UPDATE orders SET image_url = ? WHERE id = ?', (image_url, order_id))
     conn.commit()
     updated = cursor.rowcount
     conn.close()
+    return bool(updated)
 
-    if not updated:
-        return jsonify({"success": False, "error": "Order not found."}), 404
-    return jsonify({"success": True, "image_url": image_url})
+
+# Add (or replace) an order's picture from a pasted picture link (order page)
+@app.route('/orders/<int:order_id>/set_image', methods=['POST'])
+def set_image(order_id):
+    image_url = thumbnail_url(request.form.get('image_url', ''))
+    if not image_url:
+        return redirect(url_for('view_order', order_id=order_id, picture_error=(
+            "That doesn't look like an Amazon product picture link. On the Amazon page, right-click "
+            "the main product picture and choose 'Copy Image Link' (or 'Copy image address'), then paste it.")))
+    if not save_order_image(order_id, image_url):
+        return render_template('not_found.html'), 404
+    return redirect(url_for('view_order', order_id=order_id, picture_message="Picture saved."))
+
+
+# Try to get an order's picture from Amazon automatically (order page)
+@app.route('/orders/<int:order_id>/fetch_image', methods=['POST'])
+def fetch_image(order_id):
+    conn = get_db_connection()
+    order = conn.execute('SELECT url FROM orders WHERE id = ?', (order_id,)).fetchone()
+    conn.close()
+    if order is None:
+        return render_template('not_found.html'), 404
+    if not order['url']:
+        return redirect(url_for('view_order', order_id=order_id,
+                                picture_error="This order has no product URL to fetch the picture from."))
+
+    result = scrape_price_and_description(order['url'])
+    if result['image_url']:
+        save_order_image(order_id, result['image_url'])
+        return redirect(url_for('view_order', order_id=order_id, picture_message="Picture fetched from Amazon."))
+
+    if result['description']:
+        reason = "The Amazon page didn't have a picture the app could recognise."
+    else:
+        reason = "Amazon blocked the request (its 'are you a robot?' check), or the page couldn't be reached."
+    return redirect(url_for('view_order', order_id=order_id, picture_error=(
+        f"Couldn't get the picture automatically. {reason} Please paste the picture link instead.")))
 
 
 # Remove the picture from an order (from the order page)

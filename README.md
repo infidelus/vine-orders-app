@@ -77,7 +77,9 @@ When you add an order with the browser button (or the Find button, when Amazon l
 
 If you're offline, or Amazon ever removes a picture, a grey placeholder is shown instead and everything else carries on working.
 
-To add pictures to orders you already have, open the product on Amazon and click the browser button. The app recognises that you already have the item and offers an 'Add picture to existing order' button. Each order's page also has a 'Remove Picture' button.
+To add a picture to an order you already have, open the order and press 'Add Picture'. You can either press 'Fetch from Amazon' to have the app try to get it automatically (Amazon sometimes blocks this), or right-click the main product picture on the Amazon page, choose 'Copy Image Link' (Firefox) or 'Copy image address' (Chrome) and paste it in - that always works. The same buttons let you change or remove a picture.
+
+If you use the browser button on an item you've already got, the app warns you and asks before adding a second order for it.
 
 If you set up the browser button before version 2.2, drag it to your bookmarks bar again, as the new version also sends the picture.
 

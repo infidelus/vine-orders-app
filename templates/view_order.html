@@ -26,21 +26,46 @@
             <!-- Left Column: Order Details -->
             <div class="left-column">
                 <!-- Product picture (a small image loaded from Amazon; placeholder if none) -->
+                {% if picture_error %}
+                    <div class="find-status find-status-error">{{ picture_error }}</div>
+                {% elif picture_message %}
+                    <div class="find-status find-status-info">{{ picture_message }}</div>
+                {% endif %}
                 <div class="order-picture">
                     <img class="order-picture-img" alt="Product picture" referrerpolicy="no-referrer"
                          src="{{ order['image_url'] or url_for('static', filename='img/no-image.svg') }}"
                          onerror="this.onerror=null; this.src='{{ url_for('static', filename='img/no-image.svg') }}';">
-                    {% if order['image_url'] %}
-                        <form method="POST" action="{{ url_for('remove_image', order_id=order['id']) }}"
-                              onsubmit="return confirm('Remove the picture from this order?');">
-                            <button type="submit" class="cancel-button">Remove Picture</button>
-                        </form>
-                    {% else %}
-                        <p class="order-picture-hint">
-                            No picture yet. To add one, open the product on Amazon and use the
-                            "Add to Vine Orders" browser button.
+                    <div class="order-picture-buttons">
+                        <button type="button" id="picture-toggle-btn" class="small-button" onclick="togglePictureEdit(true)">
+                            {{ 'Change Picture' if order['image_url'] else 'Add Picture' }}
+                        </button>
+                        {% if order['image_url'] %}
+                            <form method="POST" action="{{ url_for('remove_image', order_id=order['id']) }}"
+                                  onsubmit="return confirm('Remove the picture from this order?');">
+                                <button type="submit" class="cancel-button">Remove Picture</button>
+                            </form>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Ways to add a picture: fetch it automatically, or paste the picture's link -->
+                <div id="picture-edit-section" class="picture-edit" style="display: none;">
+                    <form method="POST" action="{{ url_for('fetch_image', order_id=order['id']) }}"
+                          onsubmit="this.querySelector('button').disabled = true; this.querySelector('button').textContent = 'Fetching…';">
+                        <button type="submit" class="small-button">Fetch from Amazon</button>
+                        <span class="picture-edit-hint">Tries to get it automatically (Amazon sometimes blocks this).</span>
+                    </form>
+                    <form method="POST" action="{{ url_for('set_image', order_id=order['id']) }}">
+                        <p class="picture-edit-hint">
+                            Or, on the Amazon page, right-click the main product picture, choose
+                            <em>Copy Image Link</em> (Firefox) or <em>Copy image address</em> (Chrome),
+                            and paste it here:
                         </p>
-                    {% endif %}
+                        <input type="text" name="image_url" class="picture-link-input" required
+                               placeholder="https://m.media-amazon.com/images/I/...">
+                        <button type="submit" class="small-button">Save Picture</button>
+                        <button type="button" class="cancel-button" onclick="togglePictureEdit(false)">Cancel</button>
+                    </form>
                 </div>
 
                 <div id="details-display">
@@ -206,6 +231,12 @@
 
                 // Prevent selecting a review date earlier than the order date
                 document.getElementById('review_date').setAttribute('min', '{{ order["date_ordered"] }}');
+
+                // Show or hide the ways of adding a picture
+                function togglePictureEdit(isEditing) {
+                    document.getElementById('picture-edit-section').style.display = isEditing ? 'block' : 'none';
+                    document.getElementById('picture-toggle-btn').style.display = isEditing ? 'none' : 'inline-block';
+                }
 
                 // Show or hide the form for editing the description, URL and order date
                 function toggleDetailsEdit(isEditing) {

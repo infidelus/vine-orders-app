@@ -1457,10 +1457,45 @@ body {
     border: 1px solid #ddd;
 }
 
-.picture-button {
-    margin-left: 4px;
-    padding: 2px 8px;
+/* The form row's display: flex would otherwise override 'hidden' */
+.picture-row[hidden] {
+    display: none;
+}
+
+/* Adding a picture on the order page */
+.order-picture-buttons {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.picture-edit {
+    margin-bottom: 15px;
+    padding: 10px 12px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+}
+
+.picture-edit form {
+    margin: 0 0 8px;
+}
+
+.picture-edit-hint {
     font-size: 13px;
+    opacity: 0.85;
+    margin: 8px 0 6px;
+}
+
+.picture-link-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 5px;
+    margin-bottom: 8px;
+}
+
+.dark-mode .picture-edit {
+    border-color: #555;
 }
 
 .dark-mode .order-picture-img,
