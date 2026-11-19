@@ -71,17 +71,17 @@
                 <thead>
                     <tr>
                         <th class="thumb-column"></th>
-                        <th>Description</th>
-                        <th>Price</th>
+                        <th class="desc-column">Description</th>
+                        <th class="price-column">Price</th>
                         {% if filter == 'sold' %}
-                            <th>Date Sold</th>
-                            <th>Sold For</th>
-                            <th>Platform</th>
+                            <th class="date-column">Date Sold</th>
+                            <th class="price-column">Sold For</th>
+                            <th class="platform-column">Platform</th>
                         {% else %}
-                            <th>Date Ordered</th>
-                            <th>Review Due</th>
+                            <th class="date-column">Date Ordered</th>
+                            <th class="date-column">Review Due</th>
                         {% endif %}
-                        <th>Actions</th>
+                        <th class="action-column">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -94,17 +94,17 @@
                                          onerror="this.onerror=null; this.src='{{ url_for('static', filename='img/no-image.svg') }}';">
                                 </a>
                             </td>
-                            <td>{{ order['description'] }}</td>
+                            <td class="desc-column" title="{{ order['description'] }}">{{ order['description'] }}</td>
                             <td class="price-column">{{ order['price'] }}</td>
                             {% if filter == 'sold' %}
-                                <td>{{ order['date_sold'] }}</td>
+                                <td class="date-column">{{ order['date_sold'] }}</td>
                                 <td class="price-column">{{ order['sale_price'] }}</td>
-                                <td>{{ order['sale_platform'] }}</td>
+                                <td class="platform-column">{{ order['sale_platform'] }}</td>
                             {% else %}
-                                <td>{{ order['date_ordered'] }}</td>
-                                <td>{{ order['review_due'] or 'Reviewed' }}</td>
+                                <td class="date-column">{{ order['date_ordered'] }}</td>
+                                <td class="date-column">{{ order['review_due'] or 'Reviewed' }}</td>
                             {% endif %}
-                            <td>
+                            <td class="action-column">
                                 <a href="{{ url_for('view_order', order_id=order['id']) }}" class="small-button">
                                     View
                                 </a>

@@ -428,29 +428,31 @@ h1 {
     background-color: #f2f2f2;
 }
 
-/* Truncate long text in the first column */
-.orders-table td:first-child {
+/* Columns are styled by name (class) rather than position, so adding a
+   column can't upset the others */
+
+/* The description fills whatever space is left and long ones end in '…'
+   (hover over one to see it in full).  The max-width: 0 / width: 100% pair
+   is what lets it shrink to fit the window instead of widening the table. */
+.orders-table .desc-column {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 800px; /* Default width for the first column */
+    max-width: 0;
+    width: 100%;
 }
 
-/* Column-specific adjustments */
-.orders-table td:nth-child(2),
-.orders-table td:nth-child(4) {
+/* The other columns shrink to fit their contents */
+.orders-table .price-column,
+.orders-table .date-column,
+.orders-table .platform-column,
+.orders-table .action-column {
     white-space: nowrap;
-    width: 1%; /* Shrink-to-fit for content */
+    width: 1%;
 }
 
-.orders-table td:nth-child(3),
-.orders-table th:nth-child(3) {
-    width: 60px; /* Set a specific width for the Date Ordered column */
-    text-align: center; /* Align text for better readability */
-    white-space: nowrap; /* Prevent wrapping */
-}
-
-.orders-table td:nth-child(4) {
+.orders-table .date-column,
+.orders-table .action-column {
     text-align: center;
 }
 
@@ -799,25 +801,6 @@ html[data-theme='dark'],body[data-theme='dark'] {
     }
 }
 
-/* Orders table column width scaling */
-@media (max-width: 1200px) {
-    .orders-table td:first-child {
-        max-width: 600px;
-    }
-}
-
-@media (max-width: 900px) {
-    .orders-table td:first-child {
-        max-width: 400px;
-    }
-}
-
-@media (max-width: 600px) {
-    .orders-table td:first-child {
-        max-width: 200px;
-    }
-}
-
 /* Reduce table font size / padding */
 @media (max-width: 1000px) {
     .orders-table th,
@@ -1127,20 +1110,6 @@ body {
     background-color: #555;
 }
 
-/* Keep the sold view's extra price column right-aligned like the others */
-.orders-table.sold-view td:nth-child(4) {
-    text-align: right;
-}
-
-.orders-table.sold-view td:nth-child(4) {
-    white-space: nowrap;
-}
-
-.orders-table.sold-view td:nth-child(6) {
-    text-align: center;
-    white-space: nowrap;
-    width: 1%;
-}
 
 /* --- Statistics page --- */
 .charts-grid {
