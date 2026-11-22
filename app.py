@@ -275,13 +275,19 @@ def scrape_price_and_description(url):
     """
     Fetch an Amazon product page and pull out the title and price.
     Always returns a dictionary with 'description', 'price' (a number or None),
-    'url', 'asin' and, if something went wrong, a human-readable 'message'.
+    'image_url', 'url', 'asin', a 'status' and, if something went wrong, a
+    human-readable 'message'.  The status is one of:
+        'ok'        - the product page was read
+        'blocked'   - Amazon served its bot-check page instead
+        'not_found' - Amazon says the page doesn't exist (product removed)
+        'error'     - Amazon couldn't be reached, or sent an unexpected error
     """
     session = requests.Session()
     session.headers.update(BASE_HEADERS)
     session.headers['User-Agent'] = random.choice(USER_AGENTS)
 
-    result = {'description': '', 'price': None, 'image_url': None, 'url': url, 'asin': None, 'message': ''}
+    result = {'description': '', 'price': None, 'image_url': None, 'url': url, 'asin': None,
+              'message': '', 'status': 'error'}
 
     try:
         # Follow short links first so we can find the product code
@@ -299,6 +305,7 @@ def scrape_price_and_description(url):
 
         if looks_blocked(response, soup):
             logging.warning("Amazon returned its bot-check page rather than the product")
+            result['status'] = 'blocked'
             result['message'] = ("Amazon didn't show the product page (it served its 'are you a robot?' "
                                  "page instead). Try again in a minute, or use the 'Add to Vine Orders' "
                                  "browser button while you're on the Amazon page.")
@@ -306,8 +313,10 @@ def scrape_price_and_description(url):
 
         if response.status_code == 404:
             result['message'] = "Amazon says that page doesn't exist - please check the URL."
+            result['status'] = 'not_found'
             return result
         response.raise_for_status()
+        result['status'] = 'ok'
 
         result['description'] = find_title(soup)
         result['price'] = find_price(soup)
@@ -635,6 +644,8 @@ def init_db():
         'sale_fees': 'REAL',
         # Address of a small product picture on Amazon (added in v2.2)
         'image_url': 'TEXT',
+        # Date the picture catch-up looked for a picture and found none (v2.3)
+        'image_checked': 'TEXT',
     }
     for column_name, column_type in new_columns.items():
         if column_name not in existing_columns:
@@ -1177,7 +1188,7 @@ def save_order_image(order_id, image_url):
     """Store a picture address against an order.  Returns False if there's no such order."""
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('UPDATE orders SET image_url = ? WHERE id = ?', (image_url, order_id))
+    cursor.execute('UPDATE orders SET image_url = ?, image_checked = NULL WHERE id = ?', (image_url, order_id))
     conn.commit()
     updated = cursor.rowcount
     conn.close()
@@ -1633,6 +1644,238 @@ def export_sales_csv():
     )
 
 
+# --- Picture catch-up ---
+# Visits the Amazon page of each order that has no picture, one at a time and
+# slowly, so pictures can be filled in for a large collection without having
+# to open every order.  It runs in the background, so the browser can be closed.
+
+# Seconds between Amazon requests.  This can be changed on the Settings page,
+# within the limits below.  Each pause is a random time up to a third either
+# side (e.g. 30 means 20-40 seconds), so requests don't arrive like clockwork.
+DEFAULT_CATCHUP_INTERVAL = 30
+CATCHUP_INTERVAL_LIMITS = (10, 600)
+# If Amazon shows its bot-check page, wait this long before trying again,
+# a little longer each time it happens in a row...
+CATCHUP_BLOCK_WAIT = 10 * 60
+# ...and give up after this many blocks in a row
+CATCHUP_MAX_BLOCKS = 4
+# How many recent results to show on the Settings page
+CATCHUP_RECENT = 12
+
+catchup_lock = threading.Lock()
+catchup_stop = threading.Event()
+catchup_state = {
+    'running': False,
+    'checked': 0,        # Orders looked up in this run
+    'found': 0,          # Pictures saved in this run
+    'not_found': 0,      # Pages with no picture (or products removed)
+    'blocked': 0,        # Times Amazon showed its bot-check page
+    'total': 0,          # Orders queued at the start of this run
+    'current': None,     # Description of the order being looked up
+    'waiting_until': None,   # When the next look-up is due (a timestamp)
+    'waiting_reason': '',
+    'message': '',       # How the last run ended
+    'recent': [],        # Most recent results, newest first
+}
+
+
+def catchup_interval():
+    """The chosen number of seconds between look-ups, kept within the limits."""
+    try:
+        seconds = int(get_setting('catchup_interval', DEFAULT_CATCHUP_INTERVAL))
+    except ValueError:
+        seconds = DEFAULT_CATCHUP_INTERVAL
+    return min(max(seconds, CATCHUP_INTERVAL_LIMITS[0]), CATCHUP_INTERVAL_LIMITS[1])
+
+
+def save_catchup_interval(text):
+    """Save the interval from the form.  Returns an error message, or None if all is well."""
+    low, high = CATCHUP_INTERVAL_LIMITS
+    try:
+        seconds = int(str(text).strip())
+    except ValueError:
+        return f"The time between look-ups must be a whole number of seconds ({low} to {high})."
+    if not low <= seconds <= high:
+        return f"The time between look-ups must be between {low} and {high} seconds."
+    set_setting('catchup_interval', seconds)
+    return None
+
+
+def catchup_update(**changes):
+    with catchup_lock:
+        catchup_state.update(changes)
+
+
+def catchup_add_recent(order_id, description, outcome):
+    with catchup_lock:
+        catchup_state['recent'].insert(0, {'id': order_id, 'description': description, 'outcome': outcome})
+        del catchup_state['recent'][CATCHUP_RECENT:]
+
+
+def picture_counts():
+    """How many orders have pictures, still need one, or had none found last time."""
+    conn = get_db_connection()
+    row = conn.execute("""
+        SELECT
+            SUM(CASE WHEN image_url IS NOT NULL AND image_url != '' THEN 1 ELSE 0 END),
+            SUM(CASE WHEN (image_url IS NULL OR image_url = '') AND image_checked IS NULL
+                      AND url IS NOT NULL AND url != '' THEN 1 ELSE 0 END),
+            SUM(CASE WHEN (image_url IS NULL OR image_url = '') AND image_checked IS NOT NULL THEN 1 ELSE 0 END)
+        FROM orders
+    """).fetchone()
+    conn.close()
+    return {'with_picture': row[0] or 0, 'to_do': row[1] or 0, 'not_found_before': row[2] or 0}
+
+
+def catchup_wait(seconds, reason):
+    """Wait, unless Stop is pressed.  Returns True if Stop was pressed."""
+    catchup_update(waiting_until=time.time() + seconds, waiting_reason=reason)
+    stopped = catchup_stop.wait(seconds)
+    catchup_update(waiting_until=None, waiting_reason='')
+    return stopped
+
+
+def picture_catchup(retry_not_found):
+    """The background job: look up each order without a picture in turn."""
+    conn = get_db_connection()
+    sql = """
+        SELECT id FROM orders
+        WHERE (image_url IS NULL OR image_url = '') AND url IS NOT NULL AND url != ''
+    """
+    if not retry_not_found:
+        sql += " AND image_checked IS NULL"
+    # Newest orders first, as they're the ones you're most likely to look at
+    order_ids = [row['id'] for row in conn.execute(sql + " ORDER BY date_ordered DESC, id DESC")]
+    conn.close()
+
+    catchup_update(total=len(order_ids))
+    logging.info(f"Picture catch-up started: {len(order_ids)} orders to look up")
+    blocks_in_a_row = 0
+    message = "Finished - every order has been looked up."
+    index = 0
+
+    try:
+        while index < len(order_ids):
+            if catchup_stop.is_set():
+                message = "Stopped. Press Start to carry on from where it got to."
+                break
+
+            conn = get_db_connection()
+            order = conn.execute('SELECT id, description, url, image_url FROM orders WHERE id = ?',
+                                 (order_ids[index],)).fetchone()
+            conn.close()
+            # Skip orders deleted, or given a picture another way, since the run began
+            if order is None or order['image_url']:
+                index += 1
+                continue
+
+            catchup_update(current=order['description'])
+            result = scrape_price_and_description(order['url'])
+            today = datetime.now().strftime('%Y-%m-%d')
+
+            if result['status'] in ('blocked', 'error'):
+                # Amazon said no (or couldn't be reached) - back off and try the same order again
+                blocks_in_a_row += 1
+                with catchup_lock:
+                    catchup_state['blocked'] += 1
+                if blocks_in_a_row >= CATCHUP_MAX_BLOCKS:
+                    message = ("Stopped because Amazon kept blocking the requests. This usually passes - "
+                               "press Start again in a few hours to carry on.")
+                    break
+                wait = CATCHUP_BLOCK_WAIT * blocks_in_a_row
+                what = "showed its 'are you a robot?' page" if result['status'] == 'blocked' else "couldn't be reached"
+                catchup_add_recent(order['id'], order['description'],
+                                   f"Amazon {what} - pausing for {wait // 60} minutes")
+                if catchup_wait(wait, f"Amazon {what}, so pausing before trying again"):
+                    message = "Stopped. Press Start to carry on from where it got to."
+                    break
+                continue
+
+            blocks_in_a_row = 0
+            conn = get_db_connection()
+            if result['image_url']:
+                conn.execute('UPDATE orders SET image_url = ?, image_checked = NULL WHERE id = ?',
+                             (result['image_url'], order['id']))
+                outcome = 'Picture saved'
+                key = 'found'
+            else:
+                # Remember there's no picture, so it isn't looked up again next time
+                conn.execute('UPDATE orders SET image_checked = ? WHERE id = ?', (today, order['id']))
+                outcome = ('Product no longer on Amazon' if result['status'] == 'not_found'
+                           else 'No picture on the Amazon page')
+                key = 'not_found'
+            conn.commit()
+            conn.close()
+
+            with catchup_lock:
+                catchup_state['checked'] += 1
+                catchup_state[key] += 1
+            catchup_add_recent(order['id'], order['description'], outcome)
+            index += 1
+
+            # Pause before the next one (not needed after the last)
+            if index < len(order_ids):
+                catchup_update(current=None)
+                # Read the interval each time, so a change on the Settings page applies straight away
+                interval = catchup_interval()
+                if catchup_wait(random.uniform(interval * 2 / 3, interval * 4 / 3), "Pausing between orders"):
+                    message = "Stopped. Press Start to carry on from where it got to."
+                    break
+    except Exception as e:
+        logging.exception("Picture catch-up failed")
+        message = f"Stopped because of an error: {e}"
+    finally:
+        catchup_update(running=False, current=None, waiting_until=None, waiting_reason='', message=message)
+        logging.info(f"Picture catch-up ended: {message}")
+
+
+@app.route('/pictures/catchup/start', methods=['POST'])
+def start_picture_catchup():
+    retry_not_found = request.form.get('retry_not_found') == 'on'
+    error = save_catchup_interval(request.form.get('interval', DEFAULT_CATCHUP_INTERVAL))
+    if error:
+        return jsonify({'success': False, 'error': error})
+    with catchup_lock:
+        if catchup_state['running']:
+            return jsonify({'success': False, 'error': 'The catch-up is already running.'})
+        catchup_state.update(running=True, checked=0, found=0, not_found=0, blocked=0, total=0,
+                             current=None, waiting_until=None, waiting_reason='', message='', recent=[])
+    catchup_stop.clear()
+    threading.Thread(target=picture_catchup, args=(retry_not_found,), daemon=True,
+                     name='picture-catchup').start()
+    return jsonify({'success': True})
+
+
+# Change the interval (from the Settings page, including while a catch-up is running)
+@app.route('/pictures/catchup/interval', methods=['POST'])
+def set_catchup_interval():
+    error = save_catchup_interval(request.form.get('interval', ''))
+    if error:
+        return jsonify({'success': False, 'error': error, 'interval': catchup_interval()})
+    return jsonify({'success': True, 'interval': catchup_interval()})
+
+
+@app.route('/pictures/catchup/stop', methods=['POST'])
+def stop_picture_catchup():
+    catchup_stop.set()
+    return jsonify({'success': True})
+
+
+@app.route('/pictures/catchup/status')
+def picture_catchup_status():
+    with catchup_lock:
+        state = dict(catchup_state)
+        state['recent'] = list(catchup_state['recent'])
+    if state['waiting_until']:
+        state['seconds_to_wait'] = max(0, round(state['waiting_until'] - time.time()))
+    else:
+        state['seconds_to_wait'] = None
+    del state['waiting_until']
+    state['counts'] = picture_counts()
+    state['average_delay'] = catchup_interval()
+    return jsonify(state)
+
+
 def folder_storage_warning(folder):
     """
     When running in Docker, check whether a folder is inside a folder mapped
@@ -1716,6 +1959,9 @@ def settings():
         })
 
     return render_template('settings.html',
+                           picture_counts=picture_counts(),
+                           catchup_interval=catchup_interval(),
+                           catchup_limits=CATCHUP_INTERVAL_LIMITS,
                            message=message,
                            error=error,
                            warning=folder_storage_warning(folder),

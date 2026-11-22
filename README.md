@@ -12,7 +12,7 @@ This Flask application was originally written almost entirely by ChatGPT. Other 
 - **Review management** - write reviews in Markdown with a built-in editor, track review dates and due dates
 - **Review reminders** - the dashboard shows how many reviews are overdue or due in the next 7 days, overdue and due-soon orders are highlighted in the orders list, and there are filters for each
 - **Edit order details** - fix the description, URL or order date of any order
-- **Product pictures** - a small picture of each item in the orders list and on its page, using only a link to Amazon's own image (no pictures are stored on your server)
+- **Product pictures** - a small picture of each item in the orders list and on its page, using only a link to Amazon's own image (no pictures are stored on your server), plus a Picture Catch-up that fills in pictures for older orders in the background
 - **Ownership tracking** - each item shows when it becomes legally yours (six months after the review date), with an "Items Legally Mine" filter
 - **Sales tracking** - mark items as sold with the date, sale price, platform and optional fees. The platform is free text with autocomplete from your previous entries, so it works with eBay, Vinted, Facebook Marketplace or anywhere else you sell. The dashboard shows items sold, total sales, net sales after fees and sales this year, and the orders page has a Sold Items filter
 - **Statistics page** with charts covering orders per month, orders and value per year, sales per month and sales by platform, plus a per-platform breakdown of gross, fees and net
@@ -100,6 +100,12 @@ If you're offline, or Amazon ever removes a picture, a grey placeholder is shown
 To add a picture to an order you already have, open the order and press 'Add Picture'. You can either press 'Fetch from Amazon' to have the app try to get it automatically (Amazon sometimes blocks this), or right-click the main product picture on the Amazon page, choose 'Copy Image Link' (Firefox) or 'Copy image address' (Chrome) and paste it in - that always works. The same buttons let you change or remove a picture.
 
 If you use the browser button on an item you've already got, the app warns you and asks before adding a second order for it.
+
+### Picture Catch-up
+
+If you have lots of orders without pictures, the **Picture Catch-up** on the Settings page fills them in for you. It looks up each order's Amazon page in turn, newest orders first, and saves the picture. To avoid bothering Amazon it goes slowly, one order at a time, with a pause between each (30 seconds unless you change it; each pause varies a little either side). With over a thousand orders that's an overnight job, but it carries on in the background on the server, so you can close your browser and check on it later.
+
+If Amazon starts showing its "are you a robot?" page, the catch-up waits (10 minutes, then 20, then 30) and tries the same order again. If it's blocked four times in a row it stops and suggests trying again later. Press Stop at any time; pressing Start carries on from where it got to. Orders whose Amazon page has no picture (for example, products that have been removed) are remembered so they're not looked up again - tick 'Also retry orders where no picture was found before' to give them another go.
 
 If you set up the browser button before version 2.2, drag it to your bookmarks bar again, as the new version also sends the picture.
 

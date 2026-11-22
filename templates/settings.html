@@ -108,11 +108,193 @@
             </p>
         </div>
 
+        <!-- Picture catch-up -->
+        <div class="settings-section" id="catchup-section">
+            <h2>Picture Catch-up</h2>
+            <p>
+                Fills in pictures for orders that don't have one, by looking up each order's Amazon
+                page in turn. To avoid bothering Amazon it goes slowly - one order at a time, with a
+                pause between each - and waits if Amazon starts showing its "are you a robot?" page. It carries on in the background on the server,
+                so you can close this page or your browser; come back any time to see how it's getting on.
+            </p>
+
+            <div class="catchup-counts">
+                <div class="catchup-count"><span id="count-with">{{ picture_counts.with_picture }}</span>with pictures</div>
+                <div class="catchup-count"><span id="count-todo">{{ picture_counts.to_do }}</span>still to look up</div>
+                <div class="catchup-count"><span id="count-notfound">{{ picture_counts.not_found_before }}</span>no picture found before</div>
+            </div>
+
+            <form id="catchup-form" class="catchup-form">
+                <div class="settings-row">
+                    <label for="catchup_interval">Seconds between look-ups:</label>
+                    <input type="number" id="catchup_interval" name="interval" value="{{ catchup_interval }}"
+                           min="{{ catchup_limits[0] }}" max="{{ catchup_limits[1] }}" step="1" required>
+                    <span id="catchup-interval-note" class="catchup-estimate"></span>
+                </div>
+                <p class="settings-note catchup-interval-help">
+                    Each pause varies a little either side of this, so the requests don't arrive like clockwork.
+                    Shorter pauses finish sooner but make Amazon more likely to block the look-ups;
+                    {{ catchup_limits[0] }} seconds is the shortest allowed. You can change it while the
+                    catch-up is running.
+                </p>
+                <label class="catchup-retry">
+                    <input type="checkbox" name="retry_not_found" id="retry_not_found">
+                    Also retry orders where no picture was found before
+                </label>
+                <div class="settings-buttons">
+                    <button type="submit" id="catchup-start" class="small-button">Start Catch-up</button>
+                    <button type="button" id="catchup-stop" class="cancel-button" hidden>Stop</button>
+                    <span id="catchup-estimate" class="catchup-estimate"></span>
+                </div>
+            </form>
+
+            <div id="catchup-status" class="find-status find-status-info" hidden></div>
+
+            <div id="catchup-recent-holder" hidden>
+                <h3 class="catchup-recent-heading">Most recent</h3>
+                <ul id="catchup-recent" class="catchup-recent"></ul>
+            </div>
+        </div>
+
         <div class="bottom-buttons">
             <a href="{{ url_for('index') }}" class="button-link">Back to Dashboard</a>
         </div>
     </div>
 
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <script>
+        // --- Picture catch-up: start/stop and live progress ---
+        let catchupTimer = null;
+
+        // Turn a number of seconds into e.g. 'about 3 hours 20 minutes'
+        function friendlyDuration(seconds) {
+            const minutes = Math.round(seconds / 60);
+            if (minutes < 1) return "under a minute";
+            if (minutes < 60) return `about ${minutes} minute${minutes === 1 ? "" : "s"}`;
+            const hours = Math.floor(minutes / 60), rest = minutes % 60;
+            return `about ${hours} hour${hours === 1 ? "" : "s"}` + (rest ? ` ${rest} minute${rest === 1 ? "" : "s"}` : "");
+        }
+
+        function showCatchup(state) {
+            const counts = state.counts;
+            document.getElementById("count-with").textContent = counts.with_picture;
+            document.getElementById("count-todo").textContent = counts.to_do;
+            document.getElementById("count-notfound").textContent = counts.not_found_before;
+
+            document.getElementById("catchup-start").hidden = state.running;
+            document.getElementById("catchup-stop").hidden = !state.running;
+            document.getElementById("retry_not_found").disabled = state.running;
+
+            // Rough time left: each order takes the average pause plus a few seconds to fetch
+            const perOrder = state.average_delay + 3;
+            let remaining;
+            if (state.running) {
+                remaining = Math.max(0, state.total - state.checked);
+            } else {
+                remaining = counts.to_do + (document.getElementById("retry_not_found").checked ? counts.not_found_before : 0);
+            }
+            document.getElementById("catchup-estimate").textContent = remaining
+                ? `${remaining} order${remaining === 1 ? "" : "s"} - ${friendlyDuration(remaining * perOrder)}`
+                : "Nothing left to look up.";
+
+            // Progress / result message
+            const status = document.getElementById("catchup-status");
+            let text = "";
+            if (state.running) {
+                text = `Running: ${state.checked} of ${state.total} looked up - ${state.found} picture${state.found === 1 ? "" : "s"} found`;
+                if (state.not_found) text += `, ${state.not_found} without a picture`;
+                text += ".";
+                if (state.current) {
+                    text += ` Looking up: ${state.current}`;
+                } else if (state.seconds_to_wait !== null) {
+                    const wait = state.seconds_to_wait < 60
+                        ? `${state.seconds_to_wait} second${state.seconds_to_wait === 1 ? "" : "s"}`
+                        : friendlyDuration(state.seconds_to_wait).replace("about ", "");
+                    text += ` ${state.waiting_reason} - next look-up in ${wait}.`;
+                }
+            } else if (state.message) {
+                text = `${state.message} This run: ${state.found} picture${state.found === 1 ? "" : "s"} found, ` +
+                       `${state.not_found} without a picture.`;
+            }
+            status.textContent = text;
+            status.hidden = !text;
+
+            // Recent results (built with textContent so descriptions are shown exactly as written)
+            const list = document.getElementById("catchup-recent");
+            list.innerHTML = "";
+            state.recent.forEach(item => {
+                const li = document.createElement("li");
+                const link = document.createElement("a");
+                link.href = `/orders/${item.id}`;
+                link.textContent = item.description;
+                const outcome = document.createElement("span");
+                outcome.className = item.outcome === "Picture saved" ? "catchup-ok" : "catchup-other";
+                outcome.textContent = item.outcome;
+                li.append(outcome, " - ", link);
+                list.append(li);
+            });
+            document.getElementById("catchup-recent-holder").hidden = state.recent.length === 0;
+
+            // Keep checking every few seconds while it's running
+            clearTimeout(catchupTimer);
+            if (state.running) catchupTimer = setTimeout(refreshCatchup, 3000);
+        }
+
+        function refreshCatchup() {
+            fetch("{{ url_for('picture_catchup_status') }}")
+                .then(response => response.json())
+                .then(showCatchup)
+                .catch(error => console.error("Error checking the catch-up:", error));
+        }
+
+        document.getElementById("catchup-form").addEventListener("submit", function (event) {
+            event.preventDefault();
+            fetch("{{ url_for('start_picture_catchup') }}", { method: "POST", body: new FormData(this) })
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.success) alert(data.error);
+                    refreshCatchup();
+                });
+        });
+
+        document.getElementById("catchup-stop").addEventListener("click", function () {
+            this.disabled = true;
+            this.textContent = "Stopping…";
+            fetch("{{ url_for('stop_picture_catchup') }}", { method: "POST" })
+                .then(() => setTimeout(() => {
+                    this.disabled = false;
+                    this.textContent = "Stop";
+                    refreshCatchup();
+                }, 500));
+        });
+
+        // Update the time estimate when the 'retry' box is ticked
+        document.getElementById("retry_not_found").addEventListener("change", refreshCatchup);
+
+        // Show the range of each pause, e.g. '20-40 seconds each'
+        function showIntervalNote() {
+            const seconds = parseInt(document.getElementById("catchup_interval").value, 10);
+            document.getElementById("catchup-interval-note").textContent = seconds
+                ? `(${Math.round(seconds * 2 / 3)}-${Math.round(seconds * 4 / 3)} seconds each)` : "";
+        }
+        showIntervalNote();
+
+        // Save a new interval straight away (it applies from the next pause if running)
+        document.getElementById("catchup_interval").addEventListener("input", showIntervalNote);
+        document.getElementById("catchup_interval").addEventListener("change", function () {
+            fetch("{{ url_for('set_catchup_interval') }}", { method: "POST", body: new URLSearchParams({ interval: this.value }) })
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.success) {
+                        alert(data.error);
+                        this.value = data.interval;
+                        showIntervalNote();
+                    }
+                    refreshCatchup();
+                });
+        });
+
+        document.addEventListener("DOMContentLoaded", refreshCatchup);
+    </script>
 </body>
 </html>

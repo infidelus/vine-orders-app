@@ -1496,3 +1496,86 @@ body {
         padding: 8px 10px;
     }
 }
+
+/* --- Picture catch-up (Settings page) --- */
+.catchup-counts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: 15px 0;
+}
+
+.catchup-count {
+    flex: 1 1 150px;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    text-align: center;
+    font-size: 14px;
+}
+
+.catchup-count span {
+    display: block;
+    font-size: 24px;
+    font-weight: bold;
+    margin-bottom: 2px;
+}
+
+.catchup-retry {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+}
+
+.catchup-form {
+    margin-bottom: 12px;
+}
+
+.catchup-estimate {
+    font-size: 14px;
+    opacity: 0.85;
+}
+
+.catchup-recent-heading {
+    font-size: 16px;
+    margin: 15px 0 6px;
+}
+
+.catchup-recent {
+    margin: 0;
+    padding-left: 20px;
+    font-size: 14px;
+}
+
+.catchup-recent li {
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.catchup-ok {
+    color: #2e7d32;
+    font-weight: bold;
+}
+
+.catchup-other {
+    color: #a05a00;
+}
+
+.dark-mode .catchup-count {
+    border-color: #555;
+}
+
+.dark-mode .catchup-ok {
+    color: #7bd88f;
+}
+
+.dark-mode .catchup-other {
+    color: #ffb366;
+}
+
+.dark-mode .catchup-recent a {
+    background-color: transparent;
+}
