@@ -1579,3 +1579,7 @@ body {
 .dark-mode .catchup-recent a {
     background-color: transparent;
 }
+
+#catchup-skip {
+    margin-left: 8px;
+}

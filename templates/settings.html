@@ -149,6 +149,11 @@
             </form>
 
             <div id="catchup-status" class="find-status find-status-info" hidden></div>
+            <!-- Shown while waiting after Amazon blocked a look-up -->
+            <div id="catchup-blocked" class="find-status find-status-warning" hidden>
+                <span id="catchup-blocked-text"></span>
+                <button type="button" id="catchup-skip" class="small-button">Skip this order</button>
+            </div>
 
             <div id="catchup-recent-holder" hidden>
                 <h3 class="catchup-recent-heading">Most recent</h3>
@@ -203,8 +208,11 @@
             if (state.running) {
                 text = `Running: ${state.checked} of ${state.total} looked up - ${state.found} picture${state.found === 1 ? "" : "s"} found`;
                 if (state.not_found) text += `, ${state.not_found} without a picture`;
+                if (state.skipped) text += `, ${state.skipped} skipped`;
                 text += ".";
-                if (state.current) {
+                if (state.blocked_on) {
+                    // Explained in the yellow box below, with the Skip button
+                } else if (state.current) {
                     text += ` Looking up: ${state.current}`;
                 } else if (state.seconds_to_wait !== null) {
                     const wait = state.seconds_to_wait < 60
@@ -214,10 +222,28 @@
                 }
             } else if (state.message) {
                 text = `${state.message} This run: ${state.found} picture${state.found === 1 ? "" : "s"} found, ` +
-                       `${state.not_found} without a picture.`;
+                       `${state.not_found} without a picture` + (state.skipped ? `, ${state.skipped} skipped.` : ".");
             }
             status.textContent = text;
             status.hidden = !text;
+
+            // Waiting after a block: say which order, and offer to skip it
+            const blocked = document.getElementById("catchup-blocked");
+            if (state.running && state.blocked_on) {
+                const wait = state.seconds_to_wait !== null ? friendlyDuration(state.seconds_to_wait).replace("about ", "") : "a moment";
+                // Built with textContent so the description is shown exactly as written
+                const holder = document.getElementById("catchup-blocked-text");
+                const link = document.createElement("a");
+                link.href = `/orders/${state.blocked_on_id}`;
+                link.target = "_blank";
+                link.textContent = state.blocked_on;
+                holder.replaceChildren(
+                    `${state.waiting_reason}. It will try `, link, ` again in ${wait}. ` +
+                    `If this order keeps getting blocked (for example, if the product no longer exists), you can skip it.`);
+                blocked.hidden = false;
+            } else {
+                blocked.hidden = true;
+            }
 
             // Recent results (built with textContent so descriptions are shown exactly as written)
             const list = document.getElementById("catchup-recent");
@@ -255,6 +281,15 @@
                     if (!data.success) alert(data.error);
                     refreshCatchup();
                 });
+        });
+
+        document.getElementById("catchup-skip").addEventListener("click", function () {
+            this.disabled = true;
+            fetch("{{ url_for('skip_picture_catchup') }}", { method: "POST" })
+                .then(() => setTimeout(() => {
+                    this.disabled = false;
+                    refreshCatchup();
+                }, 1500));
         });
 
         document.getElementById("catchup-stop").addEventListener("click", function () {

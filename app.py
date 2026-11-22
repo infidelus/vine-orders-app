@@ -258,17 +258,34 @@ def tidy_page_title(title):
 def looks_blocked(response, soup):
     """
     Amazon often answers automated requests with a 'Continue shopping' or
-    'Enter the characters you see' page.  It arrives with a normal 200 status,
-    so it has to be recognised by its content.
+    'Enter the characters you see' page.  It can arrive with a normal 200
+    status, so it has to be recognised by its content.
+
+    Note: Amazon's other pages (including 'page not found') also contain a note
+    about automated access, so that alone mustn't be taken as a block - only
+    the robot check's own form and wording count.
     """
-    if response.status_code in (429, 503):
+    if response.status_code == 429:
         return True
     if soup.find(id='productTitle'):
         return False
     text = response.text
     return ('validateCaptcha' in text
-            or 'api-services-support@amazon.com' in text
-            or 'Sorry, we just need to make sure you' in text)
+            or 'Type the characters you see' in text
+            or 'Enter the characters you see' in text
+            or 'Sorry, we just need to make sure you' in text
+            or response.status_code == 503)
+
+
+def looks_not_found(response, soup):
+    """Amazon's 'page not found' page (the product has been removed, or the link is wrong)."""
+    if response.status_code in (404, 410):
+        return True
+    if soup.find(id='productTitle'):
+        return False
+    text = response.text
+    return ("couldn't find that page" in text
+            or 'not a functioning page on our site' in text)
 
 
 def scrape_price_and_description(url):
@@ -303,6 +320,13 @@ def scrape_price_and_description(url):
         response = session.get(tidy_url, timeout=10)
         soup = BeautifulSoup(response.text, 'html.parser')
 
+        # Check for a removed product first: its page also mentions automated
+        # access, which could otherwise be mistaken for the robot check
+        if looks_not_found(response, soup):
+            result['message'] = "Amazon says that page doesn't exist - the product may have been removed."
+            result['status'] = 'not_found'
+            return result
+
         if looks_blocked(response, soup):
             logging.warning("Amazon returned its bot-check page rather than the product")
             result['status'] = 'blocked'
@@ -311,10 +335,6 @@ def scrape_price_and_description(url):
                                  "browser button while you're on the Amazon page.")
             return result
 
-        if response.status_code == 404:
-            result['message'] = "Amazon says that page doesn't exist - please check the URL."
-            result['status'] = 'not_found'
-            return result
         response.raise_for_status()
         result['status'] = 'ok'
 
@@ -1225,10 +1245,14 @@ def fetch_image(order_id):
         save_order_image(order_id, result['image_url'])
         return redirect(url_for('view_order', order_id=order_id, picture_message="Picture fetched from Amazon."))
 
-    if result['description']:
-        reason = "The Amazon page didn't have a picture the app could recognise."
+    if result['status'] == 'not_found':
+        reason = "Amazon says this product's page no longer exists."
+    elif result['status'] == 'blocked':
+        reason = "Amazon blocked the request (its 'are you a robot?' check) - try again in a few minutes."
+    elif result['status'] == 'error':
+        reason = "Amazon couldn't be reached - try again in a few minutes."
     else:
-        reason = "Amazon blocked the request (its 'are you a robot?' check), or the page couldn't be reached."
+        reason = "The Amazon page didn't have a picture the app could recognise."
     return redirect(url_for('view_order', order_id=order_id, picture_error=(
         f"Couldn't get the picture automatically. {reason} Please paste the picture link instead.")))
 
@@ -1664,6 +1688,7 @@ CATCHUP_RECENT = 12
 
 catchup_lock = threading.Lock()
 catchup_stop = threading.Event()
+catchup_skip = threading.Event()   # 'Skip this order' pressed during a robot pause
 catchup_state = {
     'running': False,
     'checked': 0,        # Orders looked up in this run
@@ -1674,6 +1699,9 @@ catchup_state = {
     'current': None,     # Description of the order being looked up
     'waiting_until': None,   # When the next look-up is due (a timestamp)
     'waiting_reason': '',
+    'blocked_on': None,  # Description of the order Amazon blocked (during the pause)
+    'blocked_on_id': None,
+    'skipped': 0,        # Orders skipped with the Skip button
     'message': '',       # How the last run ended
     'recent': [],        # Most recent results, newest first
 }
@@ -1728,11 +1756,28 @@ def picture_counts():
 
 
 def catchup_wait(seconds, reason):
-    """Wait, unless Stop is pressed.  Returns True if Stop was pressed."""
+    """
+    Wait, unless Stop (or Skip) is pressed.  Returns 'stop', 'skip' or None
+    if the wait simply finished.
+    """
     catchup_update(waiting_until=time.time() + seconds, waiting_reason=reason)
-    stopped = catchup_stop.wait(seconds)
+    end = time.time() + seconds
+    outcome = None
+    # Check every second or so, so Stop and Skip respond quickly
+    while True:
+        if catchup_stop.is_set():
+            outcome = 'stop'
+            break
+        if catchup_skip.is_set():
+            outcome = 'skip'
+            break
+        remaining = end - time.time()
+        if remaining <= 0:
+            break
+        catchup_stop.wait(min(1, remaining))
+    catchup_skip.clear()
     catchup_update(waiting_until=None, waiting_reason='')
-    return stopped
+    return outcome
 
 
 def picture_catchup(retry_not_found):
@@ -1785,10 +1830,31 @@ def picture_catchup(retry_not_found):
                 wait = CATCHUP_BLOCK_WAIT * blocks_in_a_row
                 what = "showed its 'are you a robot?' page" if result['status'] == 'blocked' else "couldn't be reached"
                 catchup_add_recent(order['id'], order['description'],
-                                   f"Amazon {what} - pausing for {wait // 60} minutes")
-                if catchup_wait(wait, f"Amazon {what}, so pausing before trying again"):
+                                   f"Amazon {what} - pausing for {round(wait / 60)} minutes")
+                catchup_update(current=None, blocked_on=order['description'], blocked_on_id=order['id'])
+                outcome = catchup_wait(wait, f"Amazon {what}, so pausing before trying again")
+                catchup_update(blocked_on=None, blocked_on_id=None)
+                if outcome == 'stop':
                     message = "Stopped. Press Start to carry on from where it got to."
                     break
+                if outcome == 'skip':
+                    # Move on, and remember the order like one with no picture, so
+                    # it isn't looked up again (unless 'retry' is ticked)
+                    conn = get_db_connection()
+                    conn.execute('UPDATE orders SET image_checked = ? WHERE id = ?', (today, order['id']))
+                    conn.commit()
+                    conn.close()
+                    with catchup_lock:
+                        catchup_state['skipped'] += 1
+                    catchup_add_recent(order['id'], order['description'], 'Skipped')
+                    blocks_in_a_row = 0
+                    index += 1
+                    if index < len(order_ids):
+                        interval = catchup_interval()
+                        if catchup_wait(random.uniform(interval * 2 / 3, interval * 4 / 3),
+                                        "Pausing between orders") == 'stop':
+                            message = "Stopped. Press Start to carry on from where it got to."
+                            break
                 continue
 
             blocks_in_a_row = 0
@@ -1818,14 +1884,16 @@ def picture_catchup(retry_not_found):
                 catchup_update(current=None)
                 # Read the interval each time, so a change on the Settings page applies straight away
                 interval = catchup_interval()
-                if catchup_wait(random.uniform(interval * 2 / 3, interval * 4 / 3), "Pausing between orders"):
+                if catchup_wait(random.uniform(interval * 2 / 3, interval * 4 / 3),
+                                "Pausing between orders") == 'stop':
                     message = "Stopped. Press Start to carry on from where it got to."
                     break
     except Exception as e:
         logging.exception("Picture catch-up failed")
         message = f"Stopped because of an error: {e}"
     finally:
-        catchup_update(running=False, current=None, waiting_until=None, waiting_reason='', message=message)
+        catchup_update(running=False, current=None, waiting_until=None, waiting_reason='',
+                       blocked_on=None, blocked_on_id=None, message=message)
         logging.info(f"Picture catch-up ended: {message}")
 
 
@@ -1838,9 +1906,11 @@ def start_picture_catchup():
     with catchup_lock:
         if catchup_state['running']:
             return jsonify({'success': False, 'error': 'The catch-up is already running.'})
-        catchup_state.update(running=True, checked=0, found=0, not_found=0, blocked=0, total=0,
-                             current=None, waiting_until=None, waiting_reason='', message='', recent=[])
+        catchup_state.update(running=True, checked=0, found=0, not_found=0, blocked=0, total=0, skipped=0,
+                             current=None, waiting_until=None, waiting_reason='', message='', recent=[],
+                             blocked_on=None, blocked_on_id=None)
     catchup_stop.clear()
+    catchup_skip.clear()
     threading.Thread(target=picture_catchup, args=(retry_not_found,), daemon=True,
                      name='picture-catchup').start()
     return jsonify({'success': True})
@@ -1853,6 +1923,16 @@ def set_catchup_interval():
     if error:
         return jsonify({'success': False, 'error': error, 'interval': catchup_interval()})
     return jsonify({'success': True, 'interval': catchup_interval()})
+
+
+# Skip the order Amazon is blocking (only does anything during a robot pause)
+@app.route('/pictures/catchup/skip', methods=['POST'])
+def skip_picture_catchup():
+    with catchup_lock:
+        waiting_on_block = catchup_state['running'] and catchup_state['blocked_on_id'] is not None
+    if waiting_on_block:
+        catchup_skip.set()
+    return jsonify({'success': waiting_on_block})
 
 
 @app.route('/pictures/catchup/stop', methods=['POST'])
