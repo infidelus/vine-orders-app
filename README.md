@@ -2,7 +2,7 @@
 
 A self-hosted web app to track your Amazon Vine orders, reviews and sales.
 
-This Flask application was originally written almost entirely by ChatGPT. Other than fixing obvious mistakes I noticed it make, my only input was telling it what I wanted, liked and didn't like, a little bit of CSS and HTML and a lot of beta testing and banging my head on the table because, while ChatGPT is actually quite clever, it's also exceptionally stupid sometimes and has the memory retention of a fish! Version 2.0 added sales tracking and a general tidy-up, version 2.1 added a statistics page with charts and CSV exports, this time with help from Anthropic's Claude, and version 2.2 brought a much more reliable way of adding orders (including a browser button), product pictures, review reminders, optional backups and a Docker Compose file.
+This Flask application was originally written almost entirely by ChatGPT. Other than fixing obvious mistakes I noticed it make, my only input was telling it what I wanted, liked and didn't like, a little bit of CSS and HTML and a lot of beta testing and banging my head on the table because, while ChatGPT is actually quite clever, it's also exceptionally stupid sometimes and has the memory retention of a fish! Version 2.0 added sales tracking and a general tidy-up, version 2.1 added a statistics page with charts and CSV exports, this time with help from Anthropic's Claude, and version 2.2 brought a much more reliable way of adding orders (including a browser button), product pictures, review reminders, optional backups and a Docker Compose file, and version 2.3 added a Picture Catch-up to fill in pictures for older orders in the background.
 
 ## Features
 
