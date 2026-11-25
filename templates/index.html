@@ -297,29 +297,66 @@
             // Arrived from the browser button: check whether it's a duplicate,
             // without re-scraping Amazon (we already have the details)
             {% if prefill.url %}
-            fetch("/check-existing?url=" + encodeURIComponent(urlBox.value))
-                .then(response => response.json())
-                .then(data => {
-                    const messages = [];
-                    const duplicate = existingOrdersMessage(data.existing);
-                    if (duplicate) messages.push(duplicate);
-                    {% if prefill.old_button %}
-                    messages.push("<strong>Your browser button is out of date</strong>, so no picture was sent. " +
-                                  "Open 'Browser button' below and drag the orange button to your bookmarks bar again " +
-                                  "(replacing the old one), then click it on the Amazon page again.");
-                    {% elif not prefill.image_url %}
-                    messages.push("No product picture was found on the Amazon page.");
-                    {% endif %}
-                    if (!duplicate) {
-                        messages.push("Details filled in from the Amazon page - check them and press Add Order.");
+            // Arrived from the browser button
+            (async function () {
+                const messages = [];
+                let warn = false;
+
+                // If the button didn't bring a usable picture, ask the server to
+                // fetch it (one request, like 'Fetch from Amazon' on an order page).
+                // Only the picture is used - the description and price are left alone.
+                let pictureNote = "";
+                {% if not prefill.image_url %}
+                showFindStatus("Details filled in from the Amazon page. Looking for a picture…", "info");
+                try {
+                    const response = await fetch("/fetch-product-info", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ url: urlBox.value }),
+                    });
+                    const data = await response.json();
+                    if (data.image_url) {
+                        setPicture(data.image_url);
+                    } else {
+                        pictureNote = "No product picture could be found - you can add one later from the order's page.";
                     }
-                    {% if not prefill.price %}
-                    messages.push("No price was shown on the Amazon page, so you may need to enter it yourself.");
-                    {% endif %}
-                    const warn = duplicate || {{ 'true' if prefill.old_button or not prefill.image_url else 'false' }};
-                    showFindStatus(messages.join("<br>"), warn ? "warning" : "info");
-                })
-                .catch(error => console.error("Error checking for duplicates:", error));
+                } catch (error) {
+                    console.error("Error fetching the picture:", error);
+                    pictureNote = "No product picture could be found - you can add one later from the order's page.";
+                }
+                {% endif %}
+
+                let existing = [];
+                try {
+                    const response = await fetch("/check-existing?url=" + encodeURIComponent(urlBox.value));
+                    existing = (await response.json()).existing;
+                } catch (error) {
+                    console.error("Error checking for duplicates:", error);
+                }
+
+                const duplicate = existingOrdersMessage(existing);
+                if (duplicate) {
+                    messages.push(duplicate);
+                    warn = true;
+                }
+                {% if prefill.old_button %}
+                messages.push("<strong>Your browser button is out of date.</strong> " +
+                              "Open 'Browser button' below and drag the orange button to your bookmarks bar again " +
+                              "(replacing the old one).");
+                warn = true;
+                {% endif %}
+                if (pictureNote) {
+                    messages.push(pictureNote);
+                    warn = true;
+                }
+                if (!duplicate) {
+                    messages.push("Details filled in from the Amazon page - check them and press Add Order.");
+                }
+                {% if not prefill.price %}
+                messages.push("No price was shown on the Amazon page, so you may need to enter it yourself.");
+                {% endif %}
+                showFindStatus(messages.join("<br>"), warn ? "warning" : "info");
+            })();
             {% endif %}
         });
     </script>

@@ -191,9 +191,11 @@ def find_price(soup):
 # (nothing is downloaded or saved on the server).  Amazon resizes its images on
 # request using a code in the address, e.g. ._AC_SL160_ = at most 160 pixels.
 THUMBNAIL_SIZE_CODE = '._AC_SL160_'
+# In a browser, Amazon sometimes adds an extra section before /images/I/
+# (e.g. /images/W/WEBP_402378-T1/images/I/...), so anything is allowed there.
 AMAZON_IMAGE_PATTERN = re.compile(
     r'^https://(?:m\.media-amazon\.com|images-[a-z]+\.ssl-images-amazon\.com|[a-z0-9-]+\.media-amazon\.com)'
-    r'(/images/I/[^./?#]+)(?:\.[^/?#]*?)?\.(jpg|jpeg|png|webp|gif)(?:[?#].*)?$', re.I)
+    r'(?:/[^?#]*?)?(/images/I/[^./?#]+)(?:\.[^/?#]*?)?\.(jpg|jpeg|png|webp|gif)(?:[?#].*)?$', re.I)
 
 
 def thumbnail_url(image_url):
@@ -859,6 +861,11 @@ def index():
     # Values passed in the address bar by the browser button, used to
     # pre-fill the 'Add a New Order' form
     prefill_url, _ = normalise_amazon_url(request.args.get('url', ''))
+    sent_image = request.args.get('image', '').strip()
+    if sent_image and not thumbnail_url(sent_image):
+        # Logged so that if Amazon changes its picture addresses again, the log
+        # shows exactly what was sent
+        logging.warning(f"Browser button sent a picture address that wasn't recognised: {sent_image}")
     prefill_price = parse_price(request.args.get('price', ''))
     prefill = {
         'url': prefill_url if request.args.get('url') else '',
